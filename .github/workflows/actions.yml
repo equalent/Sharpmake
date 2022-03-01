@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Bootstrap.bat ${{ matrix.configuration }}
         if: runner.os == 'Windows'
@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Download sharpmake cross-platform release binaries
         uses: actions/download-artifact@v2
@@ -99,7 +99,7 @@ jobs:
 
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Download sharpmake cross-platform release binaries
         uses: actions/download-artifact@v2
