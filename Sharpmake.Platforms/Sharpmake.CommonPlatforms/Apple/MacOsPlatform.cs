@@ -1,16 +1,5 @@
-﻿// Copyright (c) 2017-2018, 2020-2021 Ubisoft Entertainment
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+﻿// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
 
 using Sharpmake.Generators;
 using Sharpmake.Generators.FastBuild;
@@ -59,39 +48,79 @@ namespace Sharpmake
                 Options.XCode.Compiler.SDKRoot customSdkRoot = Options.GetObject<Options.XCode.Compiler.SDKRoot>(conf);
                 if (customSdkRoot != null)
                 {
-                    options["SDKRoot"] = customSdkRoot.Value;
+                    // Xcode doesn't accept the customized sdk path as SDKRoot
+                    //options["SDKRoot"] = customSdkRoot.Value;
                     cmdLineOptions["SDKRoot"] = $"-isysroot {customSdkRoot.Value}";
                 }
 
                 // Target
                 options["IPhoneOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
+                options["TvOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
+                options["WatchOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
 
                 var macOsDeploymentTarget = Options.GetObject<Options.XCode.Compiler.MacOSDeploymentTarget>(conf);
                 if (macOsDeploymentTarget != null)
                 {
                     options["MacOSDeploymentTarget"] = macOsDeploymentTarget.MinimumVersion;
-                    cmdLineOptions["MacOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag; // TODO: find what to write here
+                    cmdLineOptions["DeploymentTarget"] = IsLinkerInvokedViaCompiler ? $"{GetDeploymentTargetPrefix(conf)}{macOsDeploymentTarget.MinimumVersion}" : FileGeneratorUtilities.RemoveLineTag;
                 }
                 else
                 {
                     options["MacOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
-                    cmdLineOptions["MacOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
+                    cmdLineOptions["DeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
                 }
+
+                options["SupportsMaccatalyst"] = FileGeneratorUtilities.RemoveLineTag;
+                options["SupportsMacDesignedForIphoneIpad"] = FileGeneratorUtilities.RemoveLineTag;
+
+                #region infoplist keys
+                // MacOS specific flags
+                options["NSHumanReadableCopyright"] = Options.StringOption.Get<Options.XCode.InfoPlist.NSHumanReadableCopyright>(conf);
+                options["NSMainStoryboardFile"] = Options.StringOption.Get<Options.XCode.InfoPlist.NSMainStoryboardFile>(conf);
+                options["NSMainNibFile"] = Options.StringOption.Get<Options.XCode.InfoPlist.NSMainNibFile>(conf);
+                options["NSPrefPaneIconFile"] = Options.StringOption.Get<Options.XCode.InfoPlist.NSPrefPaneIconFile>(conf);
+                options["NSPrefPaneIconLabel"] = Options.StringOption.Get<Options.XCode.InfoPlist.NSPrefPaneIconLabel>(conf);
+                options["NSPrincipalClass"] = Options.StringOption.Get<Options.XCode.InfoPlist.NSPrincipalClass>(conf);
+
+                context.SelectOptionWithFallback(
+                    () => options["LSRequiresNativeExecution"] = FileGeneratorUtilities.RemoveLineTag,
+                    Options.Option(Options.XCode.InfoPlist.LSRequiresNativeExecution.Disable, () => options["LSRequiresNativeExecution"] = "NO"),
+                    Options.Option(Options.XCode.InfoPlist.LSRequiresNativeExecution.Enable, () => options["LSRequiresNativeExecution"] = "YES")
+                );
+
+                context.SelectOptionWithFallback(
+                    () => options["LSMultipleInstancesProhibited"] = FileGeneratorUtilities.RemoveLineTag,
+                    Options.Option(Options.XCode.InfoPlist.LSMultipleInstancesProhibited.Disable, () => options["LSMultipleInstancesProhibited"] = "NO"),
+                    Options.Option(Options.XCode.InfoPlist.LSMultipleInstancesProhibited.Enable, () => options["LSMultipleInstancesProhibited"] = "YES")
+                );
+
+                context.SelectOptionWithFallback(
+                    () => options["NSSupportsAutomaticGraphicsSwitching"] = FileGeneratorUtilities.RemoveLineTag,
+                    Options.Option(Options.XCode.InfoPlist.NSSupportsAutomaticGraphicsSwitching.Disable, () => options["NSSupportsAutomaticGraphicsSwitching"] = "NO"),
+                    Options.Option(Options.XCode.InfoPlist.NSSupportsAutomaticGraphicsSwitching.Enable, () => options["NSSupportsAutomaticGraphicsSwitching"] = "YES")
+                );
+
+                context.SelectOptionWithFallback(
+                    () => options["NSPrefersDisplaySafeAreaCompatibilityMode"] = FileGeneratorUtilities.RemoveLineTag,
+                    Options.Option(Options.XCode.InfoPlist.NSPrefersDisplaySafeAreaCompatibilityMode.Disable, () => options["NSPrefersDisplaySafeAreaCompatibilityMode"] = "NO"),
+                    Options.Option(Options.XCode.InfoPlist.NSPrefersDisplaySafeAreaCompatibilityMode.Enable, () => options["NSPrefersDisplaySafeAreaCompatibilityMode"] = "YES")
+                );
+
+                context.SelectOptionWithFallback(
+                    () => options["UISupportsTrueScreenSizeOnMac"] = FileGeneratorUtilities.RemoveLineTag,
+                    Options.Option(Options.XCode.InfoPlist.UISupportsTrueScreenSizeOnMac.Disable, () => options["UISupportsTrueScreenSizeOnMac"] = "NO"),
+                    Options.Option(Options.XCode.InfoPlist.UISupportsTrueScreenSizeOnMac.Enable, () => options["UISupportsTrueScreenSizeOnMac"] = "YES")
+                );
+                #endregion // infoplist keys
             }
 
             public override void SelectLinkerOptions(IGenerationContext context)
             {
                 base.SelectLinkerOptions(context);
 
-                var options = context.Options;
-                var cmdLineOptions = context.CommandLineOptions;
-                var conf = context.Configuration;
-
                 // Sysroot
-                cmdLineOptions["SysLibRoot"] = $"-syslibroot {XCodeDeveloperFolder}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk";
-                Options.XCode.Compiler.SDKRoot customSdkRoot = Options.GetObject<Options.XCode.Compiler.SDKRoot>(conf);
-                if (customSdkRoot != null)
-                    cmdLineOptions["SysLibRoot"] = $"-isysroot {customSdkRoot.Value}";
+                var defaultSdkRoot = $"{XCodeDeveloperFolder}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk";
+                SelectCustomSysLibRoot(context, defaultSdkRoot);
             }
         }
     }

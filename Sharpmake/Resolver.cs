@@ -1,16 +1,6 @@
-﻿// Copyright (c) 2017-2021 Ubisoft Entertainment
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+﻿// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
+
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -604,7 +594,8 @@ namespace Sharpmake
         private enum PropertyModifier
         {
             None,
-            Lower
+            Lower,
+            EscapeXML
         }
 
         private static readonly char[] s_modifierNameSplitter = new[] { ':' };
@@ -636,6 +627,8 @@ namespace Sharpmake
                     return input;
                 case PropertyModifier.Lower:
                     return input.ToLowerInvariant();
+                case PropertyModifier.EscapeXML:
+                    return Util.EscapeXml(input);
                 default:
                     throw new NotSupportedException($"Don't know how to apply modifier {modifier} to '{input}'");
             }
@@ -737,7 +730,13 @@ namespace Sharpmake
 
             if (parameter == null)
             {
-                throw new NotFoundException(parameterName + name + " is null, please set a proper value for sharpmake to resolve it");
+                throw new NotFoundException(parameterName + name + " is null on target type " + refCountedReference.Value.GetType().Name + ", please set a proper value for sharpmake to resolve it");
+            }
+
+            // Handle platform names in case they are provided by a platform extension, this allow "[target.Platform]" to be properly resolved
+            if (parameter is Platform platform && platform >= Platform._reservedPlatformSection)
+            {
+                parameter = Util.GetSimplePlatformString(platform);
             }
 
             return ApplyModifier(modifier, parameter.ToString());

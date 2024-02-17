@@ -1,16 +1,6 @@
-﻿// Copyright (c) 2018, 2020 Ubisoft Entertainment
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+﻿// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
+
 namespace Sharpmake
 {
     public static partial class Android
@@ -23,25 +13,11 @@ namespace Sharpmake
 
             private const string _projectDescriptionPlatformSpecific =
 @"    <AndroidNdkDirectory>[ndkRoot]</AndroidNdkDirectory>
-      <AndroidNdkVersion>[androidNdkVersion]</AndroidNdkVersion>
-      <AndroidSdk>[androidHome]</AndroidSdk>
-      <AndroidMinSdkVersion>[androidMinSdkVersion]</AndroidMinSdkVersion>
-      <AndroidEnablePackaging>[androidEnablePackaging]</AndroidEnablePackaging>
-      <AndroidGradleBuildDir>[androidGradleBuildDir]</AndroidGradleBuildDir>
-      <AndroidApplicationModule>[androidApplicationModule]</AndroidApplicationModule>
-";
-
-            private const string _projectImportAppTypeProps =
-                @"  <Import Project=""$(AdditionalVCTargetsPath)Application Type\$(ApplicationType)\Default.props"" />
-  <Import Project=""$(AdditionalVCTargetsPath)Application Type\$(ApplicationType)\$(ApplicationTypeRevision)\Default.props"" />
-";
-
-            // Workaround for app type props not overridable Microsoft.Cpp.Default.props
-            private const string _postImportAppTypeProps =
-                @"  <PropertyGroup>
-    <_ApplicationTypeDefaultPropsFound>true</_ApplicationTypeDefaultPropsFound>
-    <_ApplicationTypeRevisionDefaultPropsFound>true</_ApplicationTypeRevisionDefaultPropsFound>
-  </PropertyGroup>
+    <AndroidNdkVersion>[androidNdkVersion]</AndroidNdkVersion>
+    <AndroidSdk>[androidHome]</AndroidSdk>
+    <AndroidMinSdkVersion>[androidMinSdkVersion]</AndroidMinSdkVersion>
+    <VS_JavaHome>[javaHome]</VS_JavaHome>
+    <PlatformToolset>Clang</PlatformToolset>
 ";
 
             private const string _projectConfigurationsGeneralTemplate =
@@ -51,12 +27,13 @@ namespace Sharpmake
     <PlatformToolset>[options.PlatformToolset]</PlatformToolset>
     <UseOfStl>[options.UseOfStl]</UseOfStl>
     <ThumbMode>[options.ThumbMode]</ThumbMode>
-    <AndroidAPILevel>[options.AndroidAPILevel]</AndroidAPILevel>
-    <ShowAndroidPathsVerbosity>[options.ShowAndroidPathsVerbosity]</ShowAndroidPathsVerbosity>
     <LinkTimeOptimization>[options.LinkTimeOptimization]</LinkTimeOptimization>
     <ClangLinkType>[options.ClangLinkType]</ClangLinkType>
     <CppLanguageStandard>[options.CppLanguageStandard]</CppLanguageStandard>
     <CLanguageStandard>[options.CLanguageStandard]</CLanguageStandard>
+    <AndroidApkLocation>[options.AndroidApkLocation]</AndroidApkLocation>
+    <AndroidPreApkInstallCommands>[options.AndroidPreApkInstallCommands]</AndroidPreApkInstallCommands>
+    <AndroidPostApkInstallCommands>[options.AndroidPostApkInstallCommands]</AndroidPostApkInstallCommands>
   </PropertyGroup>
 ";
 
@@ -79,7 +56,20 @@ namespace Sharpmake
     <IncludePath>[options.IncludePath]</IncludePath>
     <LibraryPath>[options.LibraryPath]</LibraryPath>
     <ExcludePath>[options.ExcludePath]</ExcludePath>
-    <UseMultiToolTask>[options.UseMultiToolTask]</UseMultiToolTask>
+    <NativeBuildBackend>[options.NativeBuildBackend]</NativeBuildBackend>
+    <AndroidEnablePackaging>[options.AndroidEnablePackaging]</AndroidEnablePackaging>
+    <SkipAndroidPackaging>[options.SkipAndroidPackaging]</SkipAndroidPackaging>
+    <AndroidApplicationModule>[options.AndroidApplicationModule]</AndroidApplicationModule>
+    <AndroidGradleBuildDir>[options.AndroidGradleBuildDir]</AndroidGradleBuildDir>
+    <AndroidGradleBuildOutputDir>[options.AndroidGradleBuildIntermediateDir]</AndroidGradleBuildOutputDir>
+    <AndroidExtraGradleArgs>[options.AndroidExtraGradleArgs]</AndroidExtraGradleArgs>
+    <AndroidApkName>[options.AndroidApkName]</AndroidApkName>
+    <AndroidGradlePackageOutputName>[options.AndroidGradlePackageOutputName]</AndroidGradlePackageOutputName>
+  </PropertyGroup>
+";
+
+            private const string _projectConfigurationsFastBuildMakefile =
+                @"  <PropertyGroup Condition=""'$(Configuration)|$(Platform)'=='[conf.Name]|[platformName]'"">
     <AndroidApkName>[options.AndroidApkName]</AndroidApkName>
   </PropertyGroup>
 ";
@@ -89,24 +79,31 @@ namespace Sharpmake
       <PrecompiledHeader>[options.UsePrecompiledHeader]</PrecompiledHeader>
       <WarningLevel>[options.WarningLevel]</WarningLevel>
       <Optimization>[options.Optimization]</Optimization>
-      <PreprocessorDefinitions>[options.PreprocessorDefinitions];%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>[EscapeXML:options.PreprocessorDefinitions];%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>[options.AdditionalIncludeDirectories];%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <DebugInformationFormat>[options.DebugInformationFormat]</DebugInformationFormat>
+      <ClangDebugInformationFormat>[options.ClangDebugInformationFormat]</ClangDebugInformationFormat>
+      <LimitDebugInfo>[options.LimitDebugInfo]</LimitDebugInfo>
+      <FloatABI>[options.FloatABI]</FloatABI>
       <TreatWarningAsError>[options.TreatWarningAsError]</TreatWarningAsError>
       <OmitFramePointers>[options.OmitFramePointers]</OmitFramePointers>
       <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
       <ExceptionHandling>[options.ExceptionHandling]</ExceptionHandling>
-      <BufferSecurityCheck>[options.BufferSecurityCheck]</BufferSecurityCheck>
+      <StackProtectionLevel>[options.StackProtectionLevel]</StackProtectionLevel>
       <FunctionLevelLinking>[options.EnableFunctionLevelLinking]</FunctionLevelLinking>
       <DataLevelLinking>[options.EnableDataLevelLinking]</DataLevelLinking>
       <RuntimeTypeInfo>[options.RuntimeTypeInfo]</RuntimeTypeInfo>
       <AssemblerOutput>NoListing</AssemblerOutput>
       <CompileAs>Default</CompileAs>
       <UndefinePreprocessorDefinitions>[options.UndefinePreprocessorDefinitions]</UndefinePreprocessorDefinitions>
-      <AdditionalOptions>[options.AdditionalCompilerOptions]</AdditionalOptions>
+      <AdditionalOptions>[options.AllAdditionalCompilerOptions]</AdditionalOptions>
       <PrecompiledHeaderFile>[options.PrecompiledHeaderThrough]</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFileDirectory>[options.PrecompiledHeaderOutputFileDirectory]</PrecompiledHeaderOutputFileDirectory>
       <ShowIncludes>[options.ShowIncludes]</ShowIncludes>
       <ForcedIncludeFiles>[options.ForcedIncludeFiles]</ForcedIncludeFiles>
+      <UnwindTables>[options.UnwindTables]</UnwindTables>
+      <AddressSignificanceTable>[options.AddressSignificanceTable]</AddressSignificanceTable>
+      <ClangDiagnosticsFormat>[options.ClangDiagnosticsFormat]</ClangDiagnosticsFormat>
+      <PositionIndependentCode>[options.PositionIndependentCode]</PositionIndependentCode>
     </ClCompile>
 ";
 
@@ -116,10 +113,14 @@ namespace Sharpmake
       <OutputFile>[options.OutputFile]</OutputFile>
       <AdditionalLibraryDirectories>[options.AdditionalLibraryDirectories];%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>[options.AdditionalLinkerOptions]</AdditionalOptions>
-      <AdditionalDependencies>[options.LibsStartGroup];[options.AdditionalDependencies];%(AdditionalDependencies);[options.LibsEndGroup]</AdditionalDependencies>
+      <AdditionalDependencies>[options.AdditionalDependencies];%(AdditionalDependencies);</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>[options.IgnoreDefaultLibraryNames]</IgnoreSpecificDefaultLibraries>
       <GenerateMapFile>[options.MapFileName]</GenerateMapFile>
       <IncrementalLink>[options.IncrementalLink]</IncrementalLink>
+      <FunctionBinding>[options.FunctionBinding]</FunctionBinding>
+      <NoExecStackRequired>[options.NoExecStackRequired]</NoExecStackRequired>
+      <UnresolvedSymbolReferences>[options.UnresolvedSymbolReferences]</UnresolvedSymbolReferences>
+      <Relocation>[options.Relocation]</Relocation>
     </Link>
 ";
 
@@ -127,6 +128,7 @@ namespace Sharpmake
 @"    <Lib>
       <AdditionalOptions>[options.AdditionalLibrarianOptions]</AdditionalOptions>
       <OutputFile>[options.OutputFile]</OutputFile>
+      <NoWarnOnCreate>true</NoWarnOnCreate>
     </Lib>
 ";
         }

@@ -1,16 +1,6 @@
-// Copyright (c) 2017-2021 Ubisoft Entertainment
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -327,9 +317,19 @@ namespace Sharpmake
                 DotNetWindowsApp,
 
                 /// <summary>
-                /// The output is an iOS app.
+                /// The output is an Apple (macOS|iOS|tvOS|watchOS) app.
                 /// </summary>
-                IosApp,
+                AppleApp,
+
+                /// <summary>
+                /// The output is an Apple (macOS|iOS|tvOS|watchOS) framework (i.e. a Bundle of DLL (dylib) and Headers).
+                /// </summary>
+                AppleFramework,
+
+                /// <summary>
+                /// The output is an Apple (macOS|iOS|tvOS|watchOS) Bundle (i.e. kind of equivalent to DLL (dylib)).
+                /// </summary>
+                AppleBundle,
 
                 /// <summary>
                 /// The output is an iOS test bundle.
@@ -486,6 +486,12 @@ namespace Sharpmake
             public bool AllowOutputDllCopy = true;
 
             /// <summary>
+            /// Controls whether the .pdb files of [Export] projects will be copied to dependents.
+            /// The default value is <c>false</c>.
+            /// </summary>
+            public bool AllowExportProjectsToCopyPdbToDependentTargets = false;
+
+            /// <summary>
             /// Gets or sets whether dependent projects will copy their dll debugging database to the
             /// target path of their dependency projects. The default value is <c>true</c>.
             /// </summary>
@@ -531,6 +537,22 @@ namespace Sharpmake
             /// </para>
             /// </remarks>
             public bool ExportAdditionalLibrariesEvenForStaticLib = false;
+
+            /// <summary>
+            /// Setting this boolean to true forces Sharpmake to bypass the additional dependencies prefix added normally
+            /// on libraries (-l{...}, or lib{...}.a).
+            /// </summary>
+            /// <remarks>
+            /// Since Sharpmake handles all dependencies, using an <c>AdditionalDependencies</c> field in
+            /// your project as librairies, it is impossible to add other dependencies like externally built objects
+            /// (i.e. *.asm files build externally as *.o). When this is the case, bypassing the prefixing can allow us
+            /// more flexibility on our build pipeline.
+            /// <para>
+            /// The default is <c>false</c>. Set this boolean to <c>true</c> to make Sharpmake skip the name mangling of
+            /// the additional dependencies.
+            /// </para>
+            /// </remarks>
+            public bool BypassAdditionalDependenciesPrefix = false;
 
             /// <summary>
             /// Gets or sets the name of the project, as viewed by the configuration.
@@ -768,6 +790,16 @@ namespace Sharpmake
             public Strings SourceFilesCompileAsCPPRegex = new Strings();
 
             /// <summary>
+            /// Source files that match this regex will be compiled as ObjC Files.
+            /// </summary>
+            public Strings SourceFilesCompileAsObjCRegex = new Strings();
+
+            /// <summary>
+            /// Source files that match this regex will be compiled as ObjCPP Files.
+            /// </summary>
+            public Strings SourceFilesCompileAsObjCPPRegex = new Strings();
+
+            /// <summary>
             /// Source files that match this regex will be compiled as CLR Files.
             /// </summary>
             public Strings SourceFilesCompileAsCLRRegex = new Strings();
@@ -831,6 +863,14 @@ namespace Sharpmake
             #endregion
 
             /// <summary>
+            /// Include paths for Microsoft Macro Assembler compilation.
+            /// </summary>
+            /// <remarks>
+            /// The maximum number of these paths is 10.
+            /// </remarks>
+            public OrderableStrings AssemblyIncludePaths = new OrderableStrings();
+
+            /// <summary>
             /// Gets a list of compiler options to send when calling the compiler.
             /// </summary>
             /// <remarks>
@@ -852,6 +892,18 @@ namespace Sharpmake
             /// </para>
             /// </remarks>
             public OrderableStrings AdditionalCompilerOptions = new OrderableStrings();
+
+            /// <summary>
+            /// Get a list of compiler optimization options to send when calling the compiler. It is necessary to properly implement the 
+            /// fastbuild .CompilerOptionsDeoptimized
+            /// </summary>
+            /// <remarks>
+            /// <para>
+            /// This property is for the compiler. It is similar to 
+            /// <see cref="AdditionalCompilerOptions"/> but only for optimizations options not exposed by Sharpmake.
+            /// </para>
+            /// </remarks>
+            public OrderableStrings AdditionalCompilerOptimizeOptions = new OrderableStrings();
 
             /// <summary>
             /// Compiler-specific options to pass when invoking the compiler to create PCHs.
@@ -933,6 +985,16 @@ namespace Sharpmake
             /// </para>
             /// </remarks>
             public string PrecompHeaderOutputFolder = null;
+
+            /// <summary>
+            /// Gets or sets the name for the precompiled header's binary file in C and C++ projects,
+            /// e.g. <c>pch.pch</c>.
+            /// </summary>
+            /// <remarks>
+            /// If this property is set to <c>null</c>, Sharpmake will simply use the project's name.
+            /// To modify the output directory of this file, use <see cref="PrecompHeaderOutputFolder"/>.
+            /// </remarks>
+            public string PrecompHeaderOutputFile = null;
 
             /// <summary>
             /// Gets a list of files that don't use the precompiled headers.
@@ -1126,6 +1188,186 @@ namespace Sharpmake
             public OrderableStrings LibraryFiles = new OrderableStrings();
 
             /// <summary>
+            /// Gets a list of the System Frameworks to link to for Xcode project.
+            /// </summary>
+            private OrderableStrings _XcodeSystemFrameworks = null;
+            public OrderableStrings XcodeSystemFrameworks
+            {
+                get
+                {
+                    if (_XcodeSystemFrameworks == null)
+                    {
+                        _XcodeSystemFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeSystemFrameworks;
+                }
+                private set { _XcodeSystemFrameworks = value; }
+            }
+
+            private OrderableStrings _XcodeDependenciesSystemFrameworks = null;
+            public OrderableStrings XcodeDependenciesSystemFrameworks
+            {
+                get
+                {
+                    if (_XcodeDependenciesSystemFrameworks == null)
+                    {
+                        _XcodeDependenciesSystemFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeDependenciesSystemFrameworks;
+                }
+            }
+
+            /// <summary>
+            /// Gets a list of the Developer Frameworks to link to for Xcode project.
+            /// </summary>
+            private OrderableStrings _XcodeDeveloperFrameworks = null;
+            public OrderableStrings XcodeDeveloperFrameworks
+            {
+                get
+                {
+                    if (_XcodeDeveloperFrameworks == null)
+                    {
+                        _XcodeDeveloperFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeDeveloperFrameworks;
+                }
+                private set { _XcodeDeveloperFrameworks = value; }
+            }
+
+            private OrderableStrings _XcodeDependenciesDeveloperFrameworks = null;
+            public OrderableStrings XcodeDependenciesDeveloperFrameworks
+            {
+                get
+                {
+                    if (_XcodeDependenciesDeveloperFrameworks == null)
+                    {
+                        _XcodeDependenciesDeveloperFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeDependenciesDeveloperFrameworks;
+                }
+            }
+
+            /// <summary>
+            /// Gets a list of the User Frameworks to link to for Xcode project.
+            /// </summary>
+            private OrderableStrings _XcodeUserFrameworks = null;
+            public OrderableStrings XcodeUserFrameworks
+            {
+                get
+                {
+                    if (_XcodeUserFrameworks == null)
+                    {
+                        _XcodeUserFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeUserFrameworks;
+                }
+                private set { _XcodeUserFrameworks = value; }
+            }
+
+            private OrderableStrings _XcodeDependenciesUserFrameworks = null;
+            public OrderableStrings XcodeDependenciesUserFrameworks
+            {
+                get
+                {
+                    if (_XcodeDependenciesUserFrameworks == null)
+                    {
+                        _XcodeDependenciesUserFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeDependenciesUserFrameworks;
+                }
+            }
+
+            /// <summary>
+            /// Gets a list of the Frameworks to link to and to embed in application for Xcode project.
+            /// </summary>
+            private OrderableStrings _XcodeEmbeddedFrameworks = null;
+            public OrderableStrings XcodeEmbeddedFrameworks
+            {
+                get
+                {
+                    if (_XcodeEmbeddedFrameworks == null)
+                    {
+                        _XcodeEmbeddedFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeEmbeddedFrameworks;
+                }
+                private set { _XcodeEmbeddedFrameworks = value; }
+            }
+
+            private OrderableStrings _XcodeDependenciesEmbeddedFrameworks = null;
+            public OrderableStrings XcodeDependenciesEmbeddedFrameworks
+            {
+                get
+                {
+                    if (_XcodeDependenciesEmbeddedFrameworks == null)
+                    {
+                        _XcodeDependenciesEmbeddedFrameworks = new OrderableStrings();
+                    }
+                    return _XcodeDependenciesEmbeddedFrameworks;
+                }
+            }
+
+            /// <summary>
+            /// Gets a list of the System Framework paths to link to for Xcode project.
+            /// </summary>
+            private OrderableStrings _XcodeSystemFrameworkPaths = null;
+            public OrderableStrings XcodeSystemFrameworkPaths
+            {
+                get
+                {
+                    if (_XcodeSystemFrameworkPaths == null)
+                    {
+                        _XcodeSystemFrameworkPaths = new OrderableStrings();
+                    }
+                    return _XcodeSystemFrameworkPaths;
+                }
+                private set { _XcodeSystemFrameworkPaths = value; }
+            }
+
+            private OrderableStrings _XcodeDependenciesSystemFrameworkPaths = null;
+            public OrderableStrings XcodeDependenciesSystemFrameworkPaths
+            {
+                get
+                {
+                    if (_XcodeDependenciesSystemFrameworkPaths == null)
+                    {
+                        _XcodeDependenciesSystemFrameworkPaths = new OrderableStrings();
+                    }
+                    return _XcodeDependenciesSystemFrameworkPaths;
+                }
+            }
+
+            /// <summary>
+            /// Gets a list of the Framework paths to link to for Xcode project.
+            /// </summary>
+            private OrderableStrings _XcodeFrameworkPaths = null;
+            public OrderableStrings XcodeFrameworkPaths
+            {
+                get
+                {
+                    if (_XcodeFrameworkPaths == null)
+                    {
+                        _XcodeFrameworkPaths = new OrderableStrings();
+                    }
+                    return _XcodeFrameworkPaths;
+                }
+                private set { _XcodeFrameworkPaths = value; }
+            }
+
+            private OrderableStrings _XcodeDependenciesFrameworkPaths = null;
+            public OrderableStrings XcodeDependenciesFrameworkPaths
+            {
+                get
+                {
+                    if (_XcodeDependenciesFrameworkPaths == null)
+                    {
+                        _XcodeDependenciesFrameworkPaths = new OrderableStrings();
+                    }
+                    return _XcodeDependenciesFrameworkPaths;
+                }
+            }
+
+            /// <summary>
             /// Gets a list of "using" directories for compiling WinRT C++ extensions.
             /// </summary>
             /// <remarks>
@@ -1245,6 +1487,15 @@ namespace Sharpmake
             public string ModuleDefinitionFile = null;
 
             /// <summary>
+            /// Allow/prevent writing VC overrides to the vcxproj files for this conf
+            /// Note that the setting must have the same value for all conf in the same vcxproj file
+            /// </summary>
+            /// <remarks>
+            /// This is only used by the Visual Studio Vcxproj generator
+            /// </remarks>
+            public bool WriteVcOverrides = true;
+
+            /// <summary>
             /// Gets or sets the path where the blob files will be generated.
             /// </summary>
             /// <remarks>
@@ -1312,6 +1563,19 @@ namespace Sharpmake
             public int FastBuildUnityInputIsolateWritableFilesLimit = 10;
 
             /// <summary>
+            /// Gets or sets the path of the list with files to isolate,
+            /// e.g.: @"temp\IsolateFileList.txt".
+            /// </summary>
+            /// <remarks>
+            /// <note>
+            /// Files in this list will be excluded from the FASTBuild unity build.
+            /// Their path must be relative to the FASTBuild working directory.
+            /// This is usually the location of the MasterBff file.
+            /// </note>
+            /// </remarks>
+            public string FastBuildUnityInputIsolateListFile = null;
+
+            /// <summary>
             /// Custom Actions to do before invoking FastBuildExecutable.
             /// </summary>
             public string FastBuildCustomActionsBeforeBuildCommand = RemoveLineTag;
@@ -1333,6 +1597,39 @@ namespace Sharpmake
             public bool FastBuildUnityUseRelativePaths = false;
 
             /// <summary>
+            /// Give a same value to configurations with same fastbuild unity settings that you want to keep together. If you want to have developer
+            /// machines have fastbuild cache hits but the section settings are not exactly the same for some targets you will need this field to
+            /// to have the same unity sections than on your build machines(typically at Ubisoft, only have the build machines have the cache in read-write mode).
+            /// </summary>
+            /// <remarks>
+            /// With this field we can force some extra fastbuild unity sections even for sections with identical settings.
+            /// Sharpmake will take into account the bucket number when creating its internal unity objects and this will let us create artifical delimitation 
+            /// of setting sections.
+            /// This field should be used only if FragmentHashUnityResolver is used.
+            /// </remarks>
+            /// <example>
+            /// You have two targets: Debug and Release. You want to enable deoptimization on debug target on developer machine but never on build machines
+            /// In a Configure method you do this:
+            /// if (IsBuildMachine() || target.Optimization > Optimization.Debug )
+            /// {
+            ///     conf.FastBuildUnityInputIsolateWritableFiles = false;
+            ///     conf.FastBuildDeoptimization = Configuration.DeoptimizationWritableFiles.NoDeoptimization;
+            ///}
+            ///else
+            ///{
+            ///    conf.FastBuildUnityInputIsolateWritableFilesLimit = 50;
+            ///    conf.FastBuildDeoptimization = true;
+            ///}
+            /// Without this change and the code below we have different unity sections on build machine and developper machines, causing fastbuild cache misses.
+            /// We now do this in a Configure method:
+            /// conf.FastBuildUnitySectionBucket = (byte)(target.Optimization > Optimization.Debug ? 1 : 0);
+            /// By doing this we force two separate unity sections on build machines(same as on developer machine).
+            /// 
+            /// Important: This assumes that you configured Sharpmake to use FragmentHashUnityResolver as the unity resolver.
+            /// </example>
+            public Byte FastBuildUnitySectionBucket = 0;
+
+            /// <summary>
             /// Gets or sets whether to generate a FASTBuild (.bff) file when using FASTBuild.
             /// </summary>
             /// <remarks>
@@ -1340,6 +1637,11 @@ namespace Sharpmake
             ///  .bff files but, instead, include any existing .bff files from the appropriate targets.
             /// </remarks>
             public bool DoNotGenerateFastBuild = false;
+
+            // Jumbo builds support for msbuild
+            public int MaxFilesPerJumboFile = 0;
+            public int MinFilesPerJumboFile = 2;
+            public int MinJumboFiles = 1;
 
             // container for executable
             /// <summary>
@@ -1605,6 +1907,12 @@ namespace Sharpmake
                 public string RebuildCommand = RemoveLineTag;
                 public string CleanCommand = RemoveLineTag;
                 public string OutputFile = RemoveLineTag;
+                public string AdditionalOptions = "";
+
+                /// <summary>
+                /// Automatically add hidden arguments to AdditionalOptions so that the IntelliSense match with the project parameters
+                /// </summary>
+                public bool AutoConfigure = true;
 
                 public bool IsResolved { get; private set; } = false;
 
@@ -1617,6 +1925,7 @@ namespace Sharpmake
                     RebuildCommand = resolver.Resolve(RebuildCommand);
                     CleanCommand = resolver.Resolve(CleanCommand);
                     OutputFile = resolver.Resolve(OutputFile);
+                    AdditionalOptions = resolver.Resolve(AdditionalOptions);
 
                     IsResolved = true;
                 }
@@ -1681,7 +1990,7 @@ namespace Sharpmake
             /// <summary>
             /// Gets the full file name of the target, without the path but with the prefix and suffix, and without the extension
             /// </summary>
-            public string TargetFileFullName { get; internal set; } = "[conf.TargetFilePlatformPrefix][conf.TargetFilePrefix][conf.TargetFileName][conf.TargetFileSuffix]";
+            public string TargetFileFullName { get; set; } = "[conf.TargetFilePlatformPrefix][conf.TargetFilePrefix][conf.TargetFileName][conf.TargetFileSuffix]";
 
             /// <summary>
             /// Gets or sets the project's full extension (ie: .dll, .self, .exe, .dlu).
@@ -1694,7 +2003,7 @@ namespace Sharpmake
             /// Gets the full file name of the target, without the path but with the suffix, and the extension
             /// and the prefix.
             /// </summary>
-            public string TargetFileFullNameWithExtension { get; internal set; } = "[conf.TargetFileFullName][conf.TargetFileFullExtension]";
+            public string TargetFileFullNameWithExtension = "[conf.TargetFileFullName][conf.TargetFileFullExtension]";
 
             /// <summary>
             /// Gets or sets the ordering index of the target when added as a library to another
@@ -1829,7 +2138,10 @@ namespace Sharpmake
             public Dictionary<string, BuildStepBase> EventPostBuildExecute = new Dictionary<string, BuildStepBase>();
             public Dictionary<string, BuildStepBase> EventCustomPostBuildExecute = new Dictionary<string, BuildStepBase>();
             public HashSet<KeyValuePair<string, string>> EventPostBuildCopies = new HashSet<KeyValuePair<string, string>>(); // <path to file, destination directory>
+
             public BuildStepExecutable PostBuildStampExe = null;
+            public List<BuildStepExecutable> PostBuildStampExes = new List<BuildStepExecutable>();
+
             public BuildStepTest PostBuildStepTest = null;
 
             public List<string> CustomBuildStep = new List<string>();
@@ -1886,6 +2198,10 @@ namespace Sharpmake
                 /// This is the executable for the custom build step.
                 /// </summary>
                 public string Executable = "";
+                /// <summary>
+                /// Use this to indicate the executable is in the system Path
+                /// </summary>
+                public bool UseExecutableFromSystemPath = false;
                 /// <summary>
                 /// These are the arguments to pass to the executable.
                 /// </summary>
@@ -2084,6 +2400,10 @@ namespace Sharpmake
                 set { }
             }
 
+            /// <summary>
+            /// Mark the configuration to be the default build configuration for XCode project
+            /// </summary>
+            public bool UseAsDefaultForXCode = false;
 
             // FastBuild configuration
             /// <summary>
@@ -2153,7 +2473,49 @@ namespace Sharpmake
             // If true, remove the source files from a FastBuild project's associated vcxproj file.
             public bool StripFastBuildSourceFiles = true;
 
-            private Dictionary<KeyValuePair<Type, ITarget>, DependencySetting> _dependenciesSetting = new Dictionary<KeyValuePair<Type, ITarget>, DependencySetting>();
+            /// <summary>
+            /// Override this delegate with a method returning a bool letting sharpmake know if it needs to add the
+            /// project containing this FastBuild conf to the solution.
+            /// By default, sharpmake will only add it if the Output is executable, or if <see cref="VcxprojUserFile"/>
+            /// is not null.
+            /// </summary>
+            public Func<bool> AddFastBuildProjectToSolutionCallback
+            {
+                get
+                {
+                    return _addFastBuildProjectToSolutionCallback ?? DefaultAddFastBuildProjectToSolution;
+                }
+                set
+                {
+                    _addFastBuildProjectToSolutionCallback = value;
+                }
+            }
+            private Func<bool> _addFastBuildProjectToSolutionCallback = null;
+
+            /// <summary>
+            /// Default method returning whether sharpmake will add the project containing this FastBuild conf to the solution
+            /// </summary>
+            public bool DefaultAddFastBuildProjectToSolution()
+            {
+                if (!IsFastBuild)
+                    return true;
+
+                if (Project.IsFastBuildAll)
+                    return true;
+
+                if (!DoNotGenerateFastBuild)
+                {
+                    if (Output == OutputType.Exe)
+                        return true;
+
+                    if (VcxprojUserFile != null)
+                        return true;
+                }
+
+                return false;
+            }
+
+            private Dictionary<ValueTuple<Type, ITarget>, DependencySetting> _dependenciesSetting = new Dictionary<ValueTuple<Type, ITarget>, DependencySetting>();
 
             // These dependencies will not be propagated to other projects that depend on us
             internal IDictionary<Type, ITarget> UnResolvedPrivateDependencies { get; } = new Dictionary<Type, ITarget>();
@@ -2257,12 +2619,41 @@ namespace Sharpmake
 
             public Strings ResolvedSourceFilesBuildExclude = new Strings();
 
+            private Strings _XcodeUnitTestSourceFilesBuildExclude = null;
+            public Strings XcodeUnitTestSourceFilesBuildExclude
+            {
+                get
+                {
+                    if (_XcodeUnitTestSourceFilesBuildExclude == null)
+                    {
+                        _XcodeUnitTestSourceFilesBuildExclude = new Strings();
+                    }
+                    return _XcodeUnitTestSourceFilesBuildExclude;
+                }
+                private set { _XcodeUnitTestSourceFilesBuildExclude = value; }
+            }
+            private Strings _XcodeResolvedUnitTestSourceFilesBuildExclude = null;
+            public Strings XcodeResolvedUnitTestSourceFilesBuildExclude
+            {
+                get
+                {
+                    if (_XcodeResolvedUnitTestSourceFilesBuildExclude == null)
+                    {
+                        _XcodeResolvedUnitTestSourceFilesBuildExclude = new Strings();
+                    }
+                    return _XcodeResolvedUnitTestSourceFilesBuildExclude;
+                }
+                private set { _XcodeResolvedUnitTestSourceFilesBuildExclude = value; }
+            }
+
             public Strings ResolvedSourceFilesBlobExclude = new Strings();
 
             public Strings ResolvedSourceFilesGenerateXmlDocumentationExclude = new Strings();
 
             public Strings ResolvedSourceFilesWithCompileAsCOption = new Strings();
             public Strings ResolvedSourceFilesWithCompileAsCPPOption = new Strings();
+            public Strings ResolvedSourceFilesWithCompileAsObjCOption = new Strings();
+            public Strings ResolvedSourceFilesWithCompileAsObjCPPOption = new Strings();
             public Strings ResolvedSourceFilesWithCompileAsCLROption = new Strings();
             public Strings ResolvedSourceFilesWithCompileAsNonCLROption = new Strings();
             public Strings ResolvedSourceFilesWithCompileAsWinRTOption = new Strings();
@@ -2421,7 +2812,12 @@ namespace Sharpmake
                 {
                     customFileBuildStep.Resolve(resolver);
                     Util.ResolvePath(Project.SourceRootPath, ref customFileBuildStep.KeyInput);
-                    Util.ResolvePath(Project.SourceRootPath, ref customFileBuildStep.Executable);
+
+                    if(!customFileBuildStep.UseExecutableFromSystemPath)
+                    {
+                        Util.ResolvePath(Project.SourceRootPath, ref customFileBuildStep.Executable);
+                    }
+
                     Util.ResolvePath(Project.SourceRootPath, ref customFileBuildStep.Output);
                     Util.ResolvePath(Project.SourceRootPath, ref customFileBuildStep.AdditionalInputs);
                 }
@@ -2459,6 +2855,12 @@ namespace Sharpmake
                         eventPair.Value.Resolve(resolver);
                 }
 
+                if (PostBuildStampExe != null && PostBuildStampExes.Any())
+                    throw new Error("Incoherent settings for {0} : both PostBuildStampExe and PostBuildStampExes have values, they are mutually exclusive.", ToString());
+
+                foreach (var stampExe in PostBuildStampExes)
+                    stampExe.Resolve(resolver);
+
                 if (PostBuildStampExe != null)
                     PostBuildStampExe.Resolve(resolver);
 
@@ -2490,7 +2892,7 @@ namespace Sharpmake
                 DependencySetting value
             )
             {
-                KeyValuePair<Type, ITarget> pair = new KeyValuePair<Type, ITarget>(projectType, target);
+                ValueTuple<Type, ITarget> pair = new ValueTuple<Type, ITarget>(projectType, target);
                 DependencySetting previousValue;
 
                 if (value < 0) //LCTODO remove when the deprecated dependency settings are removed
@@ -2586,7 +2988,7 @@ namespace Sharpmake
                 DependencySetting dependencyInheritance = DependencySetting.OnlyBuildOrder;
                 foreach (var dependency in _dependenciesSetting)
                 {
-                    if (dependency.Key.Key == projectType)
+                    if (dependency.Key.Item1 == projectType)
                         dependencyInheritance |= dependency.Value;
                 }
                 return dependencyInheritance;
@@ -2784,10 +3186,17 @@ namespace Sharpmake
             public Strings ForceUsingFiles = new Strings();
 
             public Strings CustomPropsFiles = new Strings();  // vs2010+ .props files
+            /// <summary>
+            /// CustomProperties for configuration level. Supported only in msbuild based targets(C++/C#)
+            /// </summary>
+            public Dictionary<string, string> CustomProperties = new Dictionary<string, string>();
             public Strings CustomTargetsFiles = new Strings();  // vs2010+ .targets files
 
-            // NuGet packages (only C# for now)
+            // NuGet packages (C# and visual studio c++ for now)
             public PackageReferences ReferencesByNuGetPackage = new PackageReferences();
+
+            // Framework references in C#, see: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/target-aspnetcore?view=aspnetcore-5.0&tabs=visual-studio
+            public Strings FrameworkReferences = new Strings();
 
             public bool? ReferenceOutputAssembly = null;
 
@@ -2818,7 +3227,7 @@ namespace Sharpmake
 
                 internal Configuration _configuration;
                 internal DependencySetting _dependencySetting;
-                internal Dictionary<DependencyNode, DependencyType> _childNodes = new Dictionary<DependencyNode, DependencyType>();
+                internal List<(DependencyNode, DependencyType)> _childNodes = new List<(DependencyNode, DependencyType)>();
             }
 
             public class VcxprojUserFileSettings
@@ -2827,15 +3236,18 @@ namespace Sharpmake
                 public string LocalDebuggerCommandArguments = RemoveLineTag;
                 public string LocalDebuggerEnvironment = RemoveLineTag;
                 public string LocalDebuggerWorkingDirectory = RemoveLineTag;
+                public bool LocalDebuggerAttach = false;
                 public string RemoteDebuggerCommand = RemoveLineTag;
                 public string RemoteDebuggerCommandArguments = RemoveLineTag;
                 public string RemoteDebuggingMode = RemoveLineTag;
                 public string RemoteDebuggerWorkingDirectory = RemoveLineTag;
                 public bool OverwriteExistingFile = true;
+                public string LocalDebuggerAttachString => LocalDebuggerAttach ? "true" : RemoveLineTag;
             }
 
             public VcxprojUserFileSettings VcxprojUserFile = null;
 
+            [Resolver.Resolvable]
             public class CsprojUserFileSettings
             {
                 public enum StartActionSetting
@@ -2940,6 +3352,22 @@ namespace Sharpmake
                 var visitingNodes = new Stack<Tuple<DependencyNode, PropagationSettings>>();
                 visitingNodes.Push(Tuple.Create(rootNode, new PropagationSettings(DependencySetting.Default, true, true, true, false)));
 
+                (IConfigurationTasks, Platform)? lastPlatformConfigurationTasks = null;
+
+                IConfigurationTasks GetConfigurationTasks(Platform platform)
+                {
+                    if (lastPlatformConfigurationTasks.HasValue && lastPlatformConfigurationTasks.Value.Item2 == platform)
+                    {
+                        return lastPlatformConfigurationTasks.Value.Item1;
+                    }
+
+                    var tasks = PlatformRegistry.Get<IConfigurationTasks>(platform);
+
+                    lastPlatformConfigurationTasks = (tasks, platform);
+
+                    return tasks;
+                }
+
                 while (visitingNodes.Count > 0)
                 {
                     var visitedTuple = visitingNodes.Pop();
@@ -2966,12 +3394,12 @@ namespace Sharpmake
                     foreach (var childNode in visitedNode._childNodes)
                     {
                         var childTuple = Tuple.Create(
-                            childNode.Key,
+                            childNode.Item1,
                             new PropagationSettings(
-                                isRoot ? childNode.Key._dependencySetting : (propagationSetting._dependencySetting & childNode.Key._dependencySetting), // propagate the parent setting by masking it
+                                isRoot ? childNode.Item1._dependencySetting : (propagationSetting._dependencySetting & childNode.Item1._dependencySetting), // propagate the parent setting by masking it
                                 isRoot, // only children of root are immediate
-                                (isRoot || hasPublicPathToRoot) && childNode.Value == DependencyType.Public,
-                                (isImmediate || hasPublicPathToImmediate) && childNode.Value == DependencyType.Public,
+                                (isRoot || hasPublicPathToRoot) && childNode.Item2 == DependencyType.Public,
+                                (isImmediate || hasPublicPathToImmediate) && childNode.Item2 == DependencyType.Public,
                                 !isRoot && (goesThroughDLL || visitedNode._configuration.Output == OutputType.Dll)
                             )
                         );
@@ -3050,7 +3478,7 @@ namespace Sharpmake
                                 )
                                 {
                                     if (explicitDependenciesGlobal || !compile)
-                                        PlatformRegistry.Get<IConfigurationTasks>(dependency.Platform).SetupStaticLibraryPaths(this, dependencySetting, dependency);
+                                        GetConfigurationTasks(dependency.Platform).SetupStaticLibraryPaths(this, dependencySetting, dependency);
                                     if (dependencySetting.HasFlag(DependencySetting.LibraryFiles))
                                         ConfigurationDependencies.Add(dependency);
                                     if (dependencySetting == DependencySetting.OnlyBuildOrder)
@@ -3069,14 +3497,42 @@ namespace Sharpmake
                                         DependenciesForceUsingFiles.AddRange(dependency.ForceUsingFiles);
                                 }
 
+                                if (dependency.Platform.Equals(Platform.mac) ||
+                                    dependency.Platform.Equals(Platform.ios) ||
+                                    dependency.Platform.Equals(Platform.tvos) ||
+                                    dependency.Platform.Equals(Platform.watchos) ||
+                                    dependency.Platform.Equals(Platform.maccatalyst)
+                                )
+                                {
+                                    if (dependency.XcodeSystemFrameworks.Count > 0)
+                                        XcodeDependenciesSystemFrameworks.AddRange(dependency.XcodeSystemFrameworks);
+
+                                    if (dependency.XcodeDeveloperFrameworks.Count > 0)
+                                        XcodeDependenciesDeveloperFrameworks.AddRange(dependency.XcodeDeveloperFrameworks);
+
+                                    if (dependency.XcodeUserFrameworks.Count > 0)
+                                        XcodeDependenciesUserFrameworks.AddRange(dependency.XcodeUserFrameworks);
+
+                                    if (dependency.XcodeEmbeddedFrameworks.Count > 0)
+                                        XcodeDependenciesEmbeddedFrameworks.AddRange(dependency.XcodeEmbeddedFrameworks);
+
+                                    if (dependency.XcodeSystemFrameworkPaths.Count > 0)
+                                        XcodeDependenciesSystemFrameworkPaths.AddRange(dependency.XcodeSystemFrameworkPaths);
+
+                                    if (dependency.XcodeFrameworkPaths.Count > 0)
+                                        XcodeDependenciesFrameworkPaths.AddRange(dependency.XcodeFrameworkPaths);
+                                }
+
                                 // If our no-output project is just a build-order dependency, update the build order accordingly
                                 if (!dependencyOutputLib && isImmediate && dependencySetting == DependencySetting.OnlyBuildOrder && !isExport)
                                     GenericBuildDependencies.Add(dependency);
                             }
                             break;
                         case OutputType.Dll:
+                        case OutputType.AppleFramework:
+                        case OutputType.AppleBundle:
                             {
-                                var configTasks = PlatformRegistry.Get<IConfigurationTasks>(dependency.Platform);
+                                var configTasks = GetConfigurationTasks(dependency.Platform);
 
                                 if (dependency.ExportDllSymbols && (isImmediate || hasPublicPathToRoot || !goesThroughDLL))
                                 {
@@ -3123,7 +3579,8 @@ namespace Sharpmake
                                     {
                                         _resolvedTargetCopyFiles.Add(dependencyDllFullPath);
                                         // Add PDBs only if they exist and the dependency is not an [export] project
-                                        if (!isExport && Sharpmake.Options.GetObject<Options.Vc.Linker.GenerateDebugInformation>(dependency) != Sharpmake.Options.Vc.Linker.GenerateDebugInformation.Disable)
+                                        if ((!isExport || dependency.AllowExportProjectsToCopyPdbToDependentTargets) &&
+                                            Sharpmake.Options.GetObject<Options.Vc.Linker.GenerateDebugInformation>(dependency) != Sharpmake.Options.Vc.Linker.GenerateDebugInformation.Disable)
                                         {
                                             if (dependency.CopyLinkerPdbToDependentTargets)
                                                 _resolvedTargetCopyFiles.Add(dependency.LinkerPdbFilePath);
@@ -3158,7 +3615,7 @@ namespace Sharpmake
                                 }
                             }
                             break;
-                        case OutputType.IosApp:
+                        case OutputType.AppleApp:
                         case OutputType.Exe:
                             {
                                 if (hasPublicPathToRoot)
@@ -3256,7 +3713,7 @@ namespace Sharpmake
             {
                 DependencyNode rootNode = new DependencyNode(conf, DependencySetting.Default);
 
-                Dictionary<Configuration, DependencyNode> visited = new Dictionary<Configuration, DependencyNode>();
+                Dictionary<Configuration, DependencyNode> visited = new Dictionary<Configuration, DependencyNode>(64);
 
                 Stack<DependencyNode> visiting = new Stack<DependencyNode>();
                 visiting.Push(rootNode);
@@ -3269,17 +3726,31 @@ namespace Sharpmake
                     DependencyNode alreadyExisting = null;
                     if (visited.TryGetValue(visitedConfiguration, out alreadyExisting))
                     {
+#if DEBUG
                         foreach (var child in alreadyExisting._childNodes)
                         {
-                            System.Diagnostics.Debug.Assert(!visitedNode._childNodes.ContainsKey(child.Key));
-                            visitedNode._childNodes.Add(child.Key, child.Value);
+                            Debug.Assert(visitedNode._childNodes.All(c => c.Item1 != child.Item1));
                         }
+#endif
+
+                        visitedNode._childNodes.AddRange(alreadyExisting._childNodes);
+
                         continue;
                     }
 
                     visited.Add(visitedConfiguration, visitedNode);
 
                     var unresolvedDependencies = new[] { visitedConfiguration.UnResolvedPublicDependencies, visitedConfiguration.UnResolvedPrivateDependencies };
+
+                    int total = 0;
+
+                    foreach (Dictionary<Type, ITarget> dependencies in unresolvedDependencies)
+                    {
+                        total += dependencies.Count;
+                    }
+
+                    visitedNode._childNodes.Capacity += total;
+
                     foreach (Dictionary<Type, ITarget> dependencies in unresolvedDependencies)
                     {
                         if (dependencies.Count == 0)
@@ -3294,12 +3765,16 @@ namespace Sharpmake
 
                             // Get the dependency settings from the owner of the dependency.
                             DependencySetting dependencySetting;
-                            if (!visitedConfiguration._dependenciesSetting.TryGetValue(pair, out dependencySetting))
+                            var key = new ValueTuple<Type, ITarget>(pair.Key, pair.Value);
+
+                            if (!visitedConfiguration._dependenciesSetting.TryGetValue(key, out dependencySetting))
                                 dependencySetting = DependencySetting.Default;
 
                             DependencyNode childNode = new DependencyNode(dependencyConf, dependencySetting);
-                            System.Diagnostics.Debug.Assert(!visitedNode._childNodes.ContainsKey(childNode));
-                            visitedNode._childNodes.Add(childNode, dependencyType);
+#if DEBUG
+                            Debug.Assert(visitedNode._childNodes.All(c => c.Item1 != childNode));
+#endif
+                            visitedNode._childNodes.Add((childNode, dependencyType));
 
                             visiting.Push(childNode);
                         }

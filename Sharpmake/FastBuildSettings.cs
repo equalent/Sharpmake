@@ -1,16 +1,6 @@
-// Copyright (c) 2017-2021 Ubisoft Entertainment
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
+
 using System;
 using System.Collections.Generic;
 
@@ -46,6 +36,12 @@ namespace Sharpmake
         public static string SystemDllRoot = null;
 
         /// <summary>
+        /// Full path under which files and folders are considered part of the workspace and can be expressed as relative to one another.
+        /// If left null, project.RootPath will be used instead.
+        /// </summary>
+        public static string WorkspaceRoot = null;
+
+        /// <summary>
         /// Cache path can be
         /// - a local path
         /// - a network path
@@ -61,6 +57,11 @@ namespace Sharpmake
         /// Additional settings to add to the global settings node.
         /// </summary>
         public static readonly IList<string> AdditionalGlobalSettings = new List<string>();
+
+        /// <summary>
+        /// Additional environment variables to add to the global environment settings node (key, value)
+        /// </summary>
+        public static readonly IDictionary<string, string> AdditionalGlobalEnvironmentVariables = new Dictionary<string, string>();
 
         /// <summary>
         /// Path to the fastbuild plugin dll if any. This typically will be the path to the Ubisoft asset store plugin DLL but could be any other compatible implementation.
@@ -94,6 +95,11 @@ namespace Sharpmake
         public static bool FastBuildUseIDE = true;
         public static bool FastBuildNoUnity = false;
         public static bool FastBuildValidateCopyFiles = true;
+
+        /// <summary>
+        /// Controls whether FastBuild supports a list of LinkerStamp steps
+        /// </summary>
+        public static bool FastBuildSupportLinkerStampList = false;
 
         /// <summary>
         /// Allows retention of build state across BFF changes. Requires v0.97
@@ -182,6 +188,22 @@ namespace Sharpmake
         /// <summary>
         /// Additional settings to add to the Compiler node, keyed by compiler name.
         /// </summary>
-        public static readonly IDictionary<string, IList<string>> AdditionalCompilerSettings = new Dictionary<string, IList<string>>(StringComparer.OrdinalIgnoreCase);
+        /// 
+        public static readonly IDictionary<string, List<string>> AdditionalCompilerSettings = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Additional Section referred by a compiler node, keyed by compiler name
+        /// </summary>
+        public static readonly IDictionary<string, string> AdditionalCompilerPropertyGroups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Additional custom property groups. Only those referred will be written to the bff files.
+        /// </summary>
+        public static readonly IDictionary<string, List<string>> AdditionalPropertyGroups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Custom arguments pass to fastbuild
+        /// </summary>
+        public static string FastBuildCustomArguments = null;
     }
 }

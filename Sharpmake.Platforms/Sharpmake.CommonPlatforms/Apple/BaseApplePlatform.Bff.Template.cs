@@ -1,16 +1,5 @@
-// Copyright (c) 2020-2021 Ubisoft Entertainment
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-// http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
 
 namespace Sharpmake
 {
@@ -25,9 +14,19 @@ namespace Sharpmake
                             // Libraries
                             // ---------------------------
                             + ' [cmdLineOptions.AdditionalDependencies]'
+                            // SystemFrameworks, DeveloperFrameworks, UserFrameworks and FrameworkPaths
+                            // -----------------------------------------------------------------------------
+                            + ' [cmdLineOptions.SystemFrameworks]'
+                            + ' [cmdLineOptions.DeveloperFrameworks]'
+                            + ' [cmdLineOptions.UserFrameworks]'
+                            + ' [cmdLineOptions.EmbeddedFrameworks]'
+                            + ' [cmdLineOptions.LinkerSystemFrameworkPaths]'
+                            + ' [cmdLineOptions.LinkerFrameworkPaths]'
                             // Options
                             //--------
+                            + ' [cmdLineOptions.DeploymentTarget]'
                             + ' [cmdLineOptions.GenerateMapFile]'
+                            + ' [cmdLineOptions.DeadCodeStripping]'
                             // Additional linker options
                             //--------------------------
                             + ' [options.AdditionalLinkerOptions]'
@@ -40,15 +39,28 @@ namespace Sharpmake
             + ' [cmdLineOptions.AdditionalIncludeDirectories]'
             + ' [cmdLineOptions.AdditionalUsingDirectories]'
             + ' [cmdLineOptions.PreprocessorDefinitions]'
-            + ' [cmdLineOptions.LibraryStandard]'
+            + ' [cmdLineOptions.StdLib]'
             + ' [cmdLineOptions.SDKRoot]'
-            + ' [options.ClangCppLanguageStandard]'
+            + ' [cmdLineOptions.DeploymentTarget]'
+            + ' [cmdLineOptions.CppLanguageStd]'
+            + ' [cmdLineOptions.CLanguageStd]'
+            + ' [cmdLineOptions.WarningReturnType]'
+            + ' [cmdLineOptions.RuntimeTypeInfo]'
+            + ' [cmdLineOptions.ClangEnableObjC_ARC]'
+            + ' [cmdLineOptions.ClangEnableObjC_Weak]'
+            + ' [cmdLineOptions.CppExceptions]'
+            + ' [cmdLineOptions.ObjCExceptions]'
+            + ' [cmdLineOptions.ObjCARCExceptions]'
 ";
 
         private const string _compilerExtraOptionsAdditional = @"
             // Additional compiler options
             //--------------------------
             + ' [options.AdditionalCompilerOptions]'
+            // FrameworkPaths
+            // ----------------------------------------------------------------------------
+            + ' [cmdLineOptions.CompilerSystemFrameworkPaths]'
+            + ' [cmdLineOptions.CompilerFrameworkPaths]'
 ";
 
         private const string _compilerOptimizationOptions =
@@ -58,6 +70,7 @@ namespace Sharpmake
     .CompilerOptimizations = ''
             + ' [cmdLineOptions.OptimizationLevel]'
             + ' [cmdLineOptions.GenerateDebuggingSymbols]'
+            + ' [options.AdditionalCompilerOptimizeOptions]'
 ";
     }
 }

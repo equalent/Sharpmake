@@ -1,16 +1,5 @@
-﻿// Copyright (c) 2021 Ubisoft Entertainment
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-// http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+﻿// Copyright (c) Ubisoft. All Rights Reserved.
+// Licensed under the Apache 2.0 License. See LICENSE.md in the project root for license information.
 
 using System.IO;
 using System.Linq;
@@ -30,6 +19,8 @@ namespace HelloAndroidAgde
 
     public abstract class CommonProject : Sharpmake.Project
     {
+        static public readonly Sharpmake.Options.Android.General.AndroidAPILevel AndroidMinSdkVersion = Sharpmake.Options.Android.General.AndroidAPILevel.Android29;
+
         protected CommonProject()
             : base(typeof(CommonTarget))
         {
@@ -45,7 +36,7 @@ namespace HelloAndroidAgde
         public virtual void ConfigureAll(Configuration conf, CommonTarget target)
         {
             conf.ProjectFileName = "[project.Name]_[target.Platform]";
-            if (target.DevEnv != DevEnv.xcode4ios)
+            if (target.DevEnv != DevEnv.xcode)
                 conf.ProjectFileName += "_[target.DevEnv]";
             conf.ProjectPath = Path.Combine(Globals.TmpDirectory, @"projects\[project.Name]");
             conf.IsFastBuild = target.BuildSystem == BuildSystem.FastBuild;
@@ -68,9 +59,10 @@ namespace HelloAndroidAgde
         [Configure(Platform.agde)]
         public virtual void ConfigureAgde(Configuration conf, CommonTarget target)
         {
-            conf.Options.Add(new Options.Android.General.AndroidGradleBuildDir("$(SolutionDir)"));
-            conf.Options.Add(Options.Android.General.AndroidAPILevel.Latest); // This will set AndroidMinSdkVersion when project is for AGDE
-            conf.Options.Add(Options.Android.General.UseOfStl.LibCpp_Shared);
+            conf.Options.Add(new Options.Agde.General.AndroidGradleBuildDir("$(SolutionDir)"));
+            conf.Options.Add(AndroidMinSdkVersion); // This will set AndroidMinSdkVersion when project is for AGDE
+            conf.Options.Add(Options.Agde.General.UseOfStl.LibCpp_Shared);
+            conf.Options.Add(Options.Agde.Linker.BuildId.Md5); // This allow to match debug-stripped binaries with their original binary, similar to how ".pdb" work on Windows.
         }
         #endregion
         ////////////////////////////////////////////////////////////////////////
@@ -125,7 +117,6 @@ namespace HelloAndroidAgde
         public virtual void ConfigureFastBuild(Configuration conf, CommonTarget target)
         {
             conf.SolutionFolder = "FastBuild/" + conf.SolutionFolder;
-            conf.ProjectName += "_FastBuild";
 
             conf.Defines.Add("USES_FASTBUILD");
         }
