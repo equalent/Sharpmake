@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -43,18 +44,6 @@ namespace Sharpmake
         {
             switch (framework)
             {
-                case DotNetFramework.v3_5:
-                    return "3.5";
-                case DotNetFramework.v3_5clientprofile:
-                    return "3.5";
-                case DotNetFramework.v4_5_2:
-                    return "4.5.2";
-                case DotNetFramework.v4_6:
-                    return "4.6";
-                case DotNetFramework.v4_6_1:
-                    return "4.6.1";
-                case DotNetFramework.v4_6_2:
-                    return "4.6.2";
                 case DotNetFramework.v4_7:
                     return "4.7";
                 case DotNetFramework.v4_7_1:
@@ -103,6 +92,10 @@ namespace Sharpmake
                     return "net7.0";
                 case DotNetFramework.net8_0:
                     return "net8.0";
+                case DotNetFramework.net9_0:
+                    return "net9.0";
+                case DotNetFramework.net10_0:
+                    return "net10.0";
                 case DotNetFramework.all_netframework:
                 case DotNetFramework.all_netcore:
                 case DotNetFramework.all_netstandard:
@@ -116,16 +109,6 @@ namespace Sharpmake
             //https://docs.microsoft.com/en-us/dotnet/standard/frameworks
             switch (framework)
             {
-                case DotNetFramework.v3_5:
-                    return "net35";
-                case DotNetFramework.v4_5_2:
-                    return "net452";
-                case DotNetFramework.v4_6:
-                    return "net46";
-                case DotNetFramework.v4_6_1:
-                    return "net461";
-                case DotNetFramework.v4_6_2:
-                    return "net462";
                 case DotNetFramework.v4_7:
                     return "net47";
                 case DotNetFramework.v4_7_1:
@@ -156,6 +139,10 @@ namespace Sharpmake
                     return "net7.0";
                 case DotNetFramework.net8_0:
                     return "net8.0";
+                case DotNetFramework.net9_0:
+                    return "net9.0";
+                case DotNetFramework.net10_0:
+                    return "net10.0";
                 case DotNetFramework.netstandard1_0:
                     return "netstandard1.0";
                 case DotNetFramework.netstandard1_1:
@@ -206,6 +193,8 @@ namespace Sharpmake
                     return "16.0";
                 case DevEnv.vs2022:
                     return "17.0";
+                case DevEnv.vs2026:
+                    return "18.0";
                 default:
                     throw new Error("DevEnv " + visualVersion + " not recognized!");
             }
@@ -223,6 +212,8 @@ namespace Sharpmake
                     return 16;
                 case DevEnv.vs2022:
                     return 17;
+                case DevEnv.vs2026:
+                    return 18;
                 default:
                     throw new NotImplementedException("DevEnv " + visualVersion + " not recognized!");
             }
@@ -245,6 +236,8 @@ namespace Sharpmake
                     return "v142";
                 case DevEnv.vs2022:
                     return "v143";
+                case DevEnv.vs2026:
+                    return "v145";
                 default:
                     throw new Error("DevEnv " + visualVersion + " not recognized!");
             }
@@ -262,6 +255,8 @@ namespace Sharpmake
                     return "2019";
                 case DevEnv.vs2022:
                     return "2022";
+                case DevEnv.vs2026:
+                    return "18"; // vs2026 installs as version 18 rather than the year
                 default:
                     throw new Error("DevEnv " + visualVersion + " not recognized!");
             }
@@ -269,8 +264,12 @@ namespace Sharpmake
 
         internal static void ClearVisualStudioDirCaches()
         {
+            s_visualStudioDirOverrides.Clear();
             s_visualStudioDirectories.Clear();
             s_visualStudioVCRootPathCache.Clear();
+            s_visualStudioVCToolsVersionCache.Clear();
+            s_visualStudioCompilerVersionCache.Clear();
+            s_visualStudioVCRedistVersionCache.Clear();
         }
 
         private static readonly ConcurrentDictionary<DevEnv, string> s_visualStudioDirOverrides = new ConcurrentDictionary<DevEnv, string>();
@@ -339,6 +338,8 @@ namespace Sharpmake
                     return "14.20.27404";
                 case DevEnv.vs2022:
                     return "14.30.30423"; // from Preview3
+                case DevEnv.vs2026:
+                    return "14.50.35717"; // Using latest community version
                 default:
                     throw new Error("DevEnv " + visualVersion + " not recognized for default compiler version");
             }
@@ -355,7 +356,7 @@ namespace Sharpmake
                 string vsDir = visualVersion.GetVisualStudioDir();
                 if (visualVersion > DevEnv.vs2015)
                 {
-                    return Path.Combine(vsDir, @"VC\Tools\MSVC", visualVersion.GetVisualStudioVCToolsVersion().ToString());
+                    return Path.Combine(vsDir, "VC", "Tools", "MSVC", visualVersion.GetVisualStudioVCToolsVersion().ToString());
                 }
                 else
                 {
@@ -392,6 +393,20 @@ namespace Sharpmake
             return version;
         }
 
+        private static ConcurrentDictionary<(DevEnv, Platform), Version> s_visualStudioCompilerVersionCache = new ConcurrentDictionary<(DevEnv, Platform), Version>();
+
+        public static Version GetVisualStudioVCToolsCompilerVersion(this DevEnv visualVersion, Platform platform)
+        {
+            var cacheKey = (visualVersion, platform);
+            Version version = s_visualStudioCompilerVersionCache.GetOrAdd(cacheKey, ((DevEnv, Platform) key) =>
+            {
+                string clExeFile = Path.Combine(visualVersion.GetVisualStudioBinPath(platform), "cl.exe");
+                FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(clExeFile);
+                return new Version(fileVersionInfo.FileMajorPart, fileVersionInfo.FileMinorPart, fileVersionInfo.FileBuildPart, fileVersionInfo.FilePrivatePart);
+            });
+            return version;
+        }
+
         /// <summary>
         /// Will return the name of the root directory in MSBuild under Microsoft/VC for a particular devenv,
         /// since it uses yet another versioning pattern than the toolchain
@@ -408,6 +423,8 @@ namespace Sharpmake
                     return "v160";
                 case DevEnv.vs2022:
                     return "v170";
+                case DevEnv.vs2026:
+                    return "v180";
                 default:
                     throw new Error("DevEnv " + visualVersion + " not supported!");
             }
@@ -427,6 +444,7 @@ namespace Sharpmake
                     return Path.Combine(visualVersion.GetVisualStudioDir(), @"Common7\IDE\VC\VCTargets");
                 case DevEnv.vs2019:
                 case DevEnv.vs2022:
+                case DevEnv.vs2026:
                     return Path.Combine(visualVersion.GetVisualStudioDir(), @"MSBuild\Microsoft\VC\", visualVersion.GetMSBuildVCDirVersion());
                 default:
                     throw new ArgumentOutOfRangeException(nameof(visualVersion), visualVersion, null);
@@ -443,6 +461,8 @@ namespace Sharpmake
                     return "14.24.28127";
                 case DevEnv.vs2022:
                     return "14.30.30423"; // from Preview3
+                case DevEnv.vs2026:
+                    return "14.50.35717"; // Using latest community version
                 default:
                     throw new Error("DevEnv " + visualVersion + " not recognized for default compiler version");
             }
@@ -484,8 +504,9 @@ namespace Sharpmake
                 case DevEnv.vs2017:
                 case DevEnv.vs2019:
                 case DevEnv.vs2022:
+                case DevEnv.vs2026:
                     {
-                        string targetPlatform = (platform == Platform.win64) ? "x64" : "x86";
+                        string targetPlatform = (platform == Platform.win32) ? "x86" : "x64";
                         string compilerHost = Environment.Is64BitOperatingSystem ? "HostX64" : "HostX86";
                         return Path.Combine(visualVersion.GetVisualStudioVCRootPath(), "bin", compilerHost, targetPlatform);
                     }
@@ -661,7 +682,7 @@ namespace Sharpmake
                         string netFxPath = string.Empty;
                         if (dotNetFramework.HasValue && visualVersion >= DevEnv.vs2015)
                         {
-                            string netFXKitsDir = Util.EnsureTrailingSeparator(KitsRootPaths.GetNETFXKitsDir(dotNetFramework.Value < DotNetFramework.v4_6 ? DotNetFramework.v4_6 : dotNetFramework.Value));
+                            string netFXKitsDir = Util.EnsureTrailingSeparator(KitsRootPaths.GetNETFXKitsDir(dotNetFramework.Value));
                             netFxPath = Path.Combine(netFXKitsDir, "Lib", "um", targetPlatform);
                         }
 
@@ -737,6 +758,8 @@ namespace Sharpmake
                     return "10.0.22000.0";
                 case Options.Vc.General.WindowsTargetPlatformVersion.v10_0_22621_0:
                     return "10.0.22621.0";
+                case Options.Vc.General.WindowsTargetPlatformVersion.v10_0_26100_0:
+                    return "10.0.26100.0";
                 case Options.Vc.General.WindowsTargetPlatformVersion.Latest:
                     return "$(LatestTargetPlatformVersion)";
                 default:
@@ -756,6 +779,8 @@ namespace Sharpmake
                     return visualVersion == DevEnv.vs2019;
                 case Options.Vc.General.PlatformToolset.v143:
                     return visualVersion == DevEnv.vs2022;
+                case Options.Vc.General.PlatformToolset.v145:
+                    return visualVersion == DevEnv.vs2026;
                 case Options.Vc.General.PlatformToolset.v140_xp:
                 case Options.Vc.General.PlatformToolset.v141_xp:
                 case Options.Vc.General.PlatformToolset.LLVM:
@@ -783,6 +808,8 @@ namespace Sharpmake
                     return DevEnv.vs2019;
                 case Options.Vc.General.PlatformToolset.v143:
                     return DevEnv.vs2022;
+                case Options.Vc.General.PlatformToolset.v145:
+                    return DevEnv.vs2026;
                 case Options.Vc.General.PlatformToolset.LLVM:
                 case Options.Vc.General.PlatformToolset.ClangCL:
                     return null;
@@ -810,6 +837,10 @@ namespace Sharpmake
                 case DevEnv.vs2022:
                     vcTargetsPathKey = "VCTargetsPath17";
                     vcRootPathKey = "VCInstallDir_170";
+                    break;
+                case DevEnv.vs2026:
+                    vcTargetsPathKey = "VCTargetsPath18";
+                    vcRootPathKey = "VCInstallDir_180";
                     break;
                 default:
                     throw new NotImplementedException("Please implement redirection of toolchain for " + devEnv);
@@ -845,6 +876,7 @@ namespace Sharpmake
                 case DevEnv.vs2017:
                 case DevEnv.vs2019:
                 case DevEnv.vs2022:
+                case DevEnv.vs2026:
                     return true;
                 default:
                     return false;

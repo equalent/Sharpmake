@@ -84,6 +84,14 @@ namespace Sharpmake
             set { SetProperty(ref _rootPath, value); }
         }
 
+
+        private NuGetPackageMode _nuGetReferenceType = NuGetPackageMode.VersionDefault;   // Determines the type of NuGet references generated for this project
+        public NuGetPackageMode NuGetReferenceType
+        {
+            get { return _nuGetReferenceType; }
+            set { SetProperty(ref _nuGetReferenceType, value); }
+        }
+
         private DependenciesCopyLocalTypes _dependenciesCopyLocal = DependenciesCopyLocalTypes.Default; //used primarily for the .Net Framework
         public DependenciesCopyLocalTypes DependenciesCopyLocal
         {
@@ -104,8 +112,8 @@ namespace Sharpmake
         public Strings PreFilterSourceFiles { get { return _preFilterSourceFiles; } }
 
 
-        public Strings SourceFilesExtensions = new Strings(".cpp", ".c", ".cc", ".h", ".inl", ".hpp", ".hh", ".asm");// All files under SourceRootPath are evaluated, if match found, it will be added to SourceFiles
-        public Strings SourceFilesCompileExtensions = new Strings(".cpp", ".cc", ".c", ".asm");         // File that match this regex compile
+        public Strings SourceFilesExtensions = new Strings(".cpp", ".c", ".cc", ".h", ".inl", ".hpp", ".hh", ".asm", ".nasm");// All files under SourceRootPath are evaluated, if match found, it will be added to SourceFiles
+        public Strings SourceFilesCompileExtensions = new Strings(".cpp", ".cc", ".c", ".asm", ".nasm");         // File that match this regex compile
         public Strings SourceFilesCPPExtensions = new Strings(".cpp", ".cc");
 
         public Strings SourceFilesFilters = null;                                        // if !=  null, include only file in this filter
@@ -229,6 +237,11 @@ namespace Sharpmake
         public Strings CustomPropsFiles = new Strings();  // vs2010+ .props files
         public Strings CustomTargetsFiles = new Strings();  // vs2010+ .targets files
 
+        public string NasmPropsFile = "";
+        public string NasmTargetsFile = "";
+        public string NasmExePath = "";
+        public Strings NasmPreIncludedFiles = new Strings();
+
         public Strings LibraryPathsExcludeFromWarningRegex = new Strings();                 // Library paths where we want to ignore the path doesn't exist warning
         public Strings IncludePathsExcludeFromWarningRegex = new Strings();                 // Include paths where we want to ignore the path doesn't exist warning
 
@@ -240,6 +253,7 @@ namespace Sharpmake
         public Dictionary<string, string> CustomFilterMapping = new Dictionary<string, string>();  /// maps relative source directory to a custom filter path for vcxproj.filter files
 
         public bool ContainsASM = false;
+        public bool ContainsNASM = false;
 
         // Some projects don't support changelist filter. and will generate build errors when trying to compile the resulting projects.
         public bool SkipProjectWhenFiltersActive = false;
@@ -368,11 +382,29 @@ namespace Sharpmake
             }
         }
 
-        private bool _deployProject = false;
+        [Obsolete("DeployProject is obsolete, use DeployProjectType instead (DeployType.OnlyIfBuild for the case where DeployProject == true)", false)]
         public bool DeployProject
         {
-            get { return _deployProject; }
-            set { SetProperty(ref _deployProject, value); }
+            get { return DeployProjectType != DeployType.NoDeploy; }
+            set { SetProperty(ref _deployProjectType, value ? DeployType.OnlyIfBuild : DeployType.NoDeploy); }
+        }
+
+        public enum DeployType
+        {
+            // The project would not be deployed.
+            NoDeploy,
+            // The project will be deployed only if it explicitly marked for build in visual studio
+            // (which is true for exe, but could be turned off automatically if FastBuildAll project is generated). 
+            OnlyIfBuild,
+            // The project will be always deployed.
+            AlwaysDeploy
+        }
+
+        private DeployType _deployProjectType = DeployType.NoDeploy;
+        public DeployType DeployProjectType
+        {
+            get { return _deployProjectType; }
+            set { SetProperty(ref _deployProjectType, value); }
         }
 
         public static int BlobCleaned { get; private set; }
@@ -868,8 +900,30 @@ namespace Sharpmake
                 NoneExtensions.RemoveAll(s => NoneExtensionsCopyIfNewer.Contains(s));
             }
 
+            var extensionContainers = new[]
+            {
+                SourceFilesExtensions,
+                ResourceFilesExtensions,
+                PRIFilesExtensions,
+                NatvisFilesExtensions,
+                NoneExtensions,
+                NoneExtensionsCopyIfNewer,
+                ProtoExtensions
+            };
+
+            // The code below does an expensive glob to get source files, which when generating the
+            // debug project will have to scan a potentially large depot tree and takes a long time
+            // Clear all extensions to not do the file scanning for the debug project.
+            if (this is DebugProject)
+            {
+                foreach (var container in extensionContainers)
+                {
+                    container.Clear();
+                }
+            }
+
             // Only scan directory for files if needed
-            if (SourceFilesExtensions.Count != 0 || ResourceFilesExtensions.Count != 0 || PRIFilesExtensions.Count != 0 || NoneExtensions.Count != 0 || NoneExtensionsCopyIfNewer.Count != 0)
+            if (extensionContainers.Any(container => container.Count != 0))
             {
                 string capitalizedSourceRootPath = Util.GetCapitalizedPath(SourceRootPath);
 
@@ -1213,7 +1267,10 @@ namespace Sharpmake
                 if (sourceFile.EndsWith(".asm", StringComparison.OrdinalIgnoreCase))
                 {
                     ContainsASM = true;
-                    break;
+                }
+                if (sourceFile.EndsWith(".nasm", StringComparison.OrdinalIgnoreCase))
+                {
+                    ContainsNASM = true;
                 }
             }
 
@@ -1605,7 +1662,6 @@ namespace Sharpmake
             foreach (Project.Configuration conf in Configurations)
             {
                 dependencies.UnionWith(conf.UnResolvedPublicDependencies.Keys);
-                dependencies.UnionWith(conf.UnResolvedProtectedDependencies.Keys);
                 dependencies.UnionWith(conf.UnResolvedPrivateDependencies.Keys);
             }
             return dependencies;
@@ -1659,6 +1715,8 @@ namespace Sharpmake
             ConfigurationType = configurationType;
 
             ExtensionBuildTools[".asm"] = "MASM";
+            ExtensionBuildTools[".nasm"] = "NASM";
+
             ClassName = GetType().Name;
             FullClassName = GetType().FullName;
             Targets.Initialize(targetType);
@@ -1876,6 +1934,13 @@ namespace Sharpmake
                 Util.ResolvePath(SourceRootPath, ref SourceFilesExclude);
                 Util.ResolvePath(SourceRootPath, ref SourceFilesBlobExclude);
                 Util.ResolvePath(SourceRootPath, ref SourceFilesBuildExclude);
+                Util.ResolvePath(SourceRootPath, ref PRIFiles);
+                Util.ResolvePath(SourceRootPath, ref ResourceFiles);
+                Util.ResolvePath(SourceRootPath, ref NatvisFiles);
+                Util.ResolvePath(SourceRootPath, ref NoneFiles);
+                Util.ResolvePath(SourceRootPath, ref NoneFilesCopyIfNewer);
+                Util.ResolvePath(SourceRootPath, ref ProtoFiles);
+
                 Util.ResolvePath(SharpmakeCsPath, ref _blobPath);
 
                 if (SourceFilesFilters != null)
@@ -1973,8 +2038,7 @@ namespace Sharpmake
                     if (!file.EndsWith(BlobExtension, StringComparison.OrdinalIgnoreCase))
                         files.Add(file);
 
-                    string fileNameLC = file.ToLower();
-                    s_capitalizedMapFiles.TryAdd(fileNameLC, file);
+                    Util.RegisterCapitalizedPath(file);
                 }
                 s_cachedDirectoryFiles[directoryCapitalizedFullName] = files;
             }
@@ -1993,19 +2057,9 @@ namespace Sharpmake
         private bool _resolvedDependencies = false;
         private static ConcurrentDictionary<string, List<string>> s_cachedDirectoryFiles = new ConcurrentDictionary<string, List<string>>();
 
-        // use as cache because Util.GetProperFilePathCapitalization is slow
-        private static ConcurrentDictionary<string, string> s_capitalizedMapFiles = new ConcurrentDictionary<string, string>();
-
         public static string GetCapitalizedFile(string file)
         {
-            string filenameLC = file.ToLower();
-            string capitalizedFile;
-            if (!s_capitalizedMapFiles.TryGetValue(filenameLC, out capitalizedFile))
-            {
-                capitalizedFile = Util.GetCapitalizedPath(file);
-                s_capitalizedMapFiles.TryAdd(filenameLC, capitalizedFile);
-            }
-            return capitalizedFile;
+            return Util.GetCapitalizedPath(file);
         }
 
         #endregion
@@ -2021,6 +2075,10 @@ namespace Sharpmake
             SourceFilesExtensions.Clear();
             ResourceFilesExtensions.Clear();
             PRIFilesExtensions.Clear();
+            NatvisFilesExtensions.Clear();
+            NoneExtensions.Clear();
+            NoneExtensionsCopyIfNewer.Clear();
+            ProtoExtensions.Clear();
         }
     }
 
@@ -2378,9 +2436,6 @@ namespace Sharpmake
 
         public GeneratedAssemblyConfig GeneratedAssemblyConfig = new GeneratedAssemblyConfig();
 
-        // Determines the type of NuGet references generated for this project
-        public NuGetPackageMode NuGetReferenceType = NuGetPackageMode.VersionDefault;
-
         public Options.CSharp.RunPostBuildEvent RunPostBuildEvent = Options.CSharp.RunPostBuildEvent.OnBuildSuccess;
 
         public string CodeAnalysisRuleSetFileName;
@@ -2434,8 +2489,8 @@ namespace Sharpmake
             AssemblyName = "[project.Name]";
             IsFileNameToLower = false;
             IsTargetFileNameToLower = false;
-            ResourcesPath = RootPath + @"\Resources\";
-            ContentPath = RootPath + @"\Content\";
+            ResourcesPath = @"[project.RootPath]\Resources\";
+            ContentPath = @"[project.RootPath]\Content\";
             ImportProjects.Add(new ImportProject { Project = DefaultImportProject });
             ApplicationDefinitionFilenames.Add("App.xaml", "MainApplication.xaml");
 

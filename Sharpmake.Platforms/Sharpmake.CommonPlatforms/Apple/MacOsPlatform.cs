@@ -14,14 +14,18 @@ namespace Sharpmake
             typeof(IFastBuildCompilerSettings),
             typeof(IPlatformBff),
             typeof(IClangPlatformBff),
+            typeof(IApplePlatformBff),
             typeof(IPlatformVcxproj),
             typeof(Project.Configuration.IConfigurationTasks))]
         public sealed class MacOsPlatform : BaseApplePlatform
         {
             public override Platform SharpmakePlatform => Platform.mac;
 
-            public override string SimplePlatformString => "Mac";
+            #region IPlatformDescriptor implementation
+            public override string SimplePlatformString => "macOS";
+            #endregion
 
+            #region IPlatformBff implementation
             public override string BffPlatformDefine => "APPLE_OSX";
 
             public override string CConfigName(Configuration conf)
@@ -34,6 +38,12 @@ namespace Sharpmake
                 return ".osxppConfig";
             }
 
+            public override string SwiftConfigName(Configuration conf)
+            {
+                return ".osxswiftConfig";
+            }
+            #endregion
+
             public override void SelectCompilerOptions(IGenerationContext context)
             {
                 base.SelectCompilerOptions(context);
@@ -44,14 +54,7 @@ namespace Sharpmake
 
                 // Sysroot
                 options["SDKRoot"] = "macosx";
-                cmdLineOptions["SDKRoot"] = $"-isysroot {XCodeDeveloperFolder}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk";
-                Options.XCode.Compiler.SDKRoot customSdkRoot = Options.GetObject<Options.XCode.Compiler.SDKRoot>(conf);
-                if (customSdkRoot != null)
-                {
-                    // Xcode doesn't accept the customized sdk path as SDKRoot
-                    //options["SDKRoot"] = customSdkRoot.Value;
-                    cmdLineOptions["SDKRoot"] = $"-isysroot {customSdkRoot.Value}";
-                }
+                cmdLineOptions["SDKRoot"] = $"-isysroot {ApplePlatform.Settings.MacOSSDKPath}";
 
                 // Target
                 options["IPhoneOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
@@ -62,12 +65,15 @@ namespace Sharpmake
                 if (macOsDeploymentTarget != null)
                 {
                     options["MacOSDeploymentTarget"] = macOsDeploymentTarget.MinimumVersion;
-                    cmdLineOptions["DeploymentTarget"] = IsLinkerInvokedViaCompiler ? $"{GetDeploymentTargetPrefix(conf)}{macOsDeploymentTarget.MinimumVersion}" : FileGeneratorUtilities.RemoveLineTag;
+                    string deploymentTarget = $"{GetDeploymentTargetPrefix(conf)}{macOsDeploymentTarget.MinimumVersion}";
+                    cmdLineOptions["DeploymentTarget"] = IsLinkerInvokedViaCompiler ? deploymentTarget : FileGeneratorUtilities.RemoveLineTag;
+                    cmdLineOptions["SwiftDeploymentTarget"] = deploymentTarget;
                 }
                 else
                 {
                     options["MacOSDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
                     cmdLineOptions["DeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
+                    cmdLineOptions["SwiftDeploymentTarget"] = FileGeneratorUtilities.RemoveLineTag;
                 }
 
                 options["SupportsMaccatalyst"] = FileGeneratorUtilities.RemoveLineTag;
@@ -119,8 +125,7 @@ namespace Sharpmake
                 base.SelectLinkerOptions(context);
 
                 // Sysroot
-                var defaultSdkRoot = $"{XCodeDeveloperFolder}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk";
-                SelectCustomSysLibRoot(context, defaultSdkRoot);
+                SelectCustomSysLibRoot(context, ApplePlatform.Settings.MacOSSDKPath);
             }
         }
     }

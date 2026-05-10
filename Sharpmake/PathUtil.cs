@@ -52,13 +52,31 @@ namespace Sharpmake
 
             var standardPath = path.Replace(OtherSeparator, Path.DirectorySeparatorChar);
 
-            standardPath = standardPath switch
+            // C#11 is currently disable until Sharpmake is fully ported to .net8
+            //standardPath = standardPath switch
+            //{
+            //    [WindowsSeparator or UnixSeparator] => standardPath,
+            //    [_, ':'] => IsRunningOnUnix() ? standardPath : standardPath + Path.DirectorySeparatorChar,
+            //    [_, ':', WindowsSeparator or UnixSeparator] => standardPath,
+            //    _ => standardPath.TrimEnd(Path.DirectorySeparatorChar),
+            //};
+
+            if (standardPath.Length == 1 && (standardPath[0] == WindowsSeparator || standardPath[0] == UnixSeparator))
             {
-                [WindowsSeparator or UnixSeparator] => standardPath,
-                [_, ':'] => IsRunningOnUnix() ? standardPath : standardPath + Path.DirectorySeparatorChar,
-                [_, ':', WindowsSeparator or UnixSeparator] => standardPath,
-                _ => standardPath.TrimEnd(Path.DirectorySeparatorChar),
-            };
+                // Nothing to do to make the path standard
+            }
+            else if (standardPath.Length == 2 && standardPath[1] == ':')
+            {
+                standardPath = IsRunningOnUnix() ? standardPath : standardPath + Path.DirectorySeparatorChar;
+            }
+            else if (standardPath.EndsWith($":{WindowsSeparator}", StringComparison.Ordinal) || standardPath.EndsWith($":{UnixSeparator}", StringComparison.Ordinal))
+            {
+                // Nothing to do to make the path standard
+            }
+            else
+            {
+                standardPath = standardPath.TrimEnd(Path.DirectorySeparatorChar);
+            }
 
             return forceToLower ? standardPath.ToLower() : standardPath;
         }
@@ -359,10 +377,11 @@ namespace Sharpmake
             }
 
 #if NET7_0_OR_GREATER
-            [Obsolete("Directly use 'char.IsAsciiLetter()' in 'IsCharEqual()' bellow (char.IsAsciiLetter() is available starting net7)")]
-#endif
+            static bool IsCharEqual(char a, char b, bool ignoreCase) => a == b || (ignoreCase && (a | 0x20) == (b | 0x20) && char.IsAsciiLetter(a));
+#else
             static bool IsAsciiLetter(char c) => (uint)((c | 0x20) - 'a') <= 'z' - 'a';
             static bool IsCharEqual(char a, char b, bool ignoreCase) => a == b || (ignoreCase && (a | 0x20) == (b | 0x20) && IsAsciiLetter(a));
+#endif
 
             // Check if both paths are the same (ignoring the last directory separator if any)
             if ((relativeToLength == commonPartLength && pathLength == commonPartLength)
@@ -581,7 +600,7 @@ namespace Sharpmake
         internal static string ResolvePathAndFixCase(string root, string path)
         {
             string resolvedPath = ResolvePath(root, path);
-            return GetProperFilePathCapitalization(resolvedPath);
+            return GetCapitalizedPath(resolvedPath);
         }
 
 
@@ -622,13 +641,26 @@ namespace Sharpmake
             string properFileName = fileInfo.Name;
             if (dirInfo != null && dirInfo.Exists)
             {
-                foreach (var fsInfo in dirInfo.EnumerateFileSystemInfos())
+                // This search could fail on case sensitive filesystem. We will revert to a slower method if not found
+                bool foundFilename = false;
+                foreach (var fsInfo in dirInfo.EnumerateFiles(fileInfo.Name))
                 {
-                    if (((fsInfo.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
-                        && string.Compare(fsInfo.Name, fileInfo.Name, StringComparison.OrdinalIgnoreCase) == 0)
+                    properFileName = fsInfo.Name;
+                    foundFilename = true;
+                    break;
+                }
+
+                if (!foundFilename) 
+                {
+                    // Slow search - Normally shouldn't happen
+                    foreach (var fsInfo in dirInfo.EnumerateFileSystemInfos())
                     {
-                        properFileName = fsInfo.Name;
-                        break;
+                        if (((fsInfo.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
+                            && string.Compare(fsInfo.Name, fileInfo.Name, StringComparison.OrdinalIgnoreCase) == 0)
+                        {
+                            properFileName = fsInfo.Name;
+                            break;
+                        }
                     }
                 }
             }
@@ -733,6 +765,12 @@ namespace Sharpmake
             return capitalizedPath;
         }
 
+        internal static void RegisterCapitalizedPath(string physicalPath)
+        {
+            string pathLC = physicalPath.ToLower();
+            s_capitalizedPaths.TryAdd(pathLC, physicalPath);
+        }
+
         /// <summary>
         /// Returns path with drive letter in lower case.
         /// 
@@ -800,7 +838,21 @@ namespace Sharpmake
                 var chunkStartIndex = 0;
 
                 // Handle fully qualified paths
-                var fullyQualifiedPath = paths.FirstOrDefault(p => p is ([UnixSeparator or WindowsSeparator, ..]) or ([_, ':', UnixSeparator or WindowsSeparator, ..]));
+                // C#11 is currently disable until Sharpmake is fully ported to .net8
+                //var fullyQualifiedPath = paths.FirstOrDefault(p => p is ([UnixSeparator or WindowsSeparator, ..]) or ([_, ':', UnixSeparator or WindowsSeparator, ..]));
+                string fullyQualifiedPath = null;
+                foreach (var path in paths)
+                {
+                    if (path[0] == UnixSeparator || path[0] == WindowsSeparator
+                        || (path.Length >= 3 && path[1] == ':' && (path[2] == UnixSeparator || path[2] == WindowsSeparator)))
+                    {
+                        fullyQualifiedPath = path;
+                        break;
+                    }
+                }
+
+                // If no fully qualified path is found, it remains null
+
                 if (fullyQualifiedPath is not null)
                 {
                     if (fullyQualifiedPath[0] == Path.DirectorySeparatorChar)

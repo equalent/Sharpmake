@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Threading;
 using System.Threading.Tasks;
 using Sharpmake.Generators;
@@ -39,7 +40,6 @@ namespace Sharpmake.Application
 
         #region Log
 
-        private static DateTime s_startTime = DateTime.Now;
         public static bool DebugEnable = false;
         private static int s_errorCount = 0;
         private static int s_warningCount = 0;
@@ -55,7 +55,7 @@ namespace Sharpmake.Application
 
             if (DebugEnable)
             {
-                TimeSpan span = DateTime.Now - s_startTime;
+                TimeSpan span = DateTime.Now - Util.ProgramStartTime;
                 prefix = string.Format("[{0:00}:{1:00}] ", span.Minutes, span.Seconds);
                 message = prefix + message;
             }
@@ -438,7 +438,7 @@ namespace Sharpmake.Application
                 return;
 
             GetAssemblyInfo(extensionAssembly, out var extensionName, out var _, out var extensionVersion, out var extensionLocation);
-            LogWriteLine("    {0} {1} loaded from '{2}'", extensionName, extensionVersion, extensionLocation);
+            LogWriteLine("    {0} {1} loaded from '{2}' in assembly load context '{3}'", extensionName, extensionVersion, extensionLocation, AssemblyLoadContext.GetLoadContext(extensionAssembly).Name);
         }
 
         private static void CreateBuilderAndGenerate(BuildContext.BaseBuildContext buildContext, Argument parameters, bool generateDebugSolution)
@@ -487,17 +487,20 @@ namespace Sharpmake.Application
                     if (parameters.DumpDependency)
                         DependencyTracker.Instance.DumpGraphs(outputs);
 
-                    LogWriteGenerateResults(outputs);
+                    LogWriteGenerateResults(outputs, parameters);
                 }
             }
 
-            LogWriteLine("  time: {0:0.00} sec.", (DateTime.Now - s_startTime).TotalSeconds);
+            LogWriteLine("  time: {0:0.00} sec.", (DateTime.Now - Util.ProgramStartTime).TotalSeconds);
             LogWriteLine("  completed on {0}.", DateTime.Now);
 
             if (generateDebugSolution)
             {
                 // Execute cleanup for debug solution generation
-                Util.ExecuteFilesAutoCleanup(true);
+                if (parameters.OutputDirectory == null)
+                {
+                    Util.ExecuteFilesAutoCleanup(true);
+                }
 
                 // Restore original cleanup context
                 Util.FilesAutoCleanupDBSuffix = cleanupSuffixOldValue;
@@ -555,7 +558,7 @@ namespace Sharpmake.Application
             return ExitCode.Success;
         }
 
-        public static void LogWriteGenerateResults(IDictionary<Type, GenerationOutput> outputs)
+        public static void LogWriteGenerateResults(IDictionary<Type, GenerationOutput> outputs, Argument parameters)
         {
             var projects = outputs.Where(o => typeof(Project).IsAssignableFrom(o.Key));
             var solutions = outputs.Where(o => typeof(Solution).IsAssignableFrom(o.Key));
@@ -616,6 +619,22 @@ namespace Sharpmake.Application
 
             if (generatedOtherFiles.Count > 0 || skippedOtherFiles.Count > 0)
                 LogWriteLine("    other files                      {0,5} generated, {1,5} up-to-date", generatedOtherFiles.Count, skippedOtherFiles.Count);
+
+            if (parameters.LogAllGeneratedSolutions && generatedSolutionFiles.Count + skippedSolutionFiles.Count > 0)
+            {
+                LogWriteLine("  All Generated Solutions:");
+                foreach (string solutionFile in generatedSolutionFiles)
+                {
+                    LogWriteLine("    " + solutionFile);
+                }
+                foreach (string solutionFile in skippedSolutionFiles)
+                {
+                    if (File.Exists(solutionFile)) // Some skipped files may end up being empty and then they aren't written to disk, check for that here
+                    {
+                        LogWriteLine("    " + solutionFile);
+                    }
+                }
+            }
         }
 
         public static Builder CreateBuilder(BuildContext.BaseBuildContext context, Argument parameters, bool allowCleanBlobs, bool generateDebugSolution = false)

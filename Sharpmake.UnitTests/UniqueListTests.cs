@@ -29,8 +29,8 @@ namespace Sharpmake.UnitTests
                 "D",
                 "H"
             };
-            Assert.AreEqual("AA,BBB,CC,DDD", uniqueList1.ToString());
-            Assert.AreEqual("U,D,H", uniqueList2.ToString());
+            Assert.That(uniqueList1.ToString(), Is.EqualTo("AA,BBB,CC,DDD"));
+            Assert.That(uniqueList2.ToString(), Is.EqualTo("U,D,H"));
         }
 
         /// <summary>
@@ -48,7 +48,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.UpdateValue("AA", "EE");
 
-            Assert.AreEqual("EE,BBB,CC,DDD", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("EE,BBB,CC,DDD"));
         }
 
         /// <summary>
@@ -66,7 +66,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.UpdateValue("BBB", "AA");
 
-            Assert.AreEqual("AA,CC,DDD", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,CC,DDD"));
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.Add("EE");
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE"));
         }
 
         /// <summary>
@@ -102,7 +102,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.Add("EE", "FFF");
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF"));
         }
 
         /// <summary>
@@ -120,7 +120,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.Add("EE", "FFF", "GG");
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG"));
         }
 
         /// <summary>
@@ -138,7 +138,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.Add("EE", "FFF", "GG", "HHH");
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG,HHH", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG,HHH"));
         }
 
         /// <summary>
@@ -156,7 +156,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.Add("EE", "FFF", "GG", "HHH", "II");
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG,HHH,II", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG,HHH,II"));
         }
 
         /// <summary>
@@ -179,7 +179,7 @@ namespace Sharpmake.UnitTests
                 "H"
             });
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG,H", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG,H"));
         }
 
         /// <summary>
@@ -205,7 +205,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList.AddRange(listParams);
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG,H", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG,H"));
         }
 
         /// <summary>
@@ -231,7 +231,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList.AddRange(listParams);
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG,H", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG,H"));
         }
 
         /// <summary>
@@ -257,7 +257,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList.AddRange(listParams);
 
-            Assert.AreEqual("AA,BBB,CC,DDD,EE,FFF,GG,H", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB,CC,DDD,EE,FFF,GG,H"));
         }
 
         /// <summary>
@@ -282,7 +282,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList1.IntersectWith(uniqueList2);
 
-            Assert.AreEqual("AA", uniqueList1.ToString());
+            Assert.That(uniqueList1.ToString(), Is.EqualTo("AA"));
         }
 
         /// <summary>
@@ -307,7 +307,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList1.IntersectWith(uniqueList2);
 
-            Assert.AreEqual(0, uniqueList1.Count);
+            Assert.That(uniqueList1.Count, Is.EqualTo(0));
         }
 
         /// <summary>
@@ -333,8 +333,8 @@ namespace Sharpmake.UnitTests
 
             uniqueList1.IntersectWith(uniqueList2, uniqueRest);
 
-            Assert.AreEqual("AA", uniqueList1.ToString());
-            Assert.AreEqual("G,H,BBB,CC,DDD", uniqueRest.ToString());
+            Assert.That(uniqueList1.ToString(), Is.EqualTo("AA"));
+            Assert.That(uniqueRest.ToString(), Is.EqualTo("G,H,BBB,CC,DDD"));
         }
 
         /// <summary>
@@ -359,8 +359,8 @@ namespace Sharpmake.UnitTests
             UniqueList<string> uniqueRest = new UniqueList<string>();
 
             uniqueList1.IntersectWith(uniqueList2, uniqueRest);
-            Assert.AreEqual(0, uniqueList1.Count);
-            Assert.AreEqual("U,D,H,AA,BBB,CC,DDD", uniqueRest.ToString());
+            Assert.That(uniqueList1.Count, Is.EqualTo(0));
+            Assert.That(uniqueRest.ToString(), Is.EqualTo("U,D,H,AA,BBB,CC,DDD"));
         }
 
         /// <summary>
@@ -378,7 +378,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.RemoveAll(s => s.Length == 3);
 
-            Assert.AreEqual("AA,CC", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,CC"));
         }
 
         /// <summary>
@@ -403,7 +403,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList.RemoveRange(listParams);
 
-            Assert.AreEqual("AA,BBB", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("AA,BBB"));
         }
 
         /// <summary>
@@ -423,7 +423,7 @@ namespace Sharpmake.UnitTests
 
             uniqueList.Remove(listParams);
 
-            Assert.AreEqual("DDD", uniqueList.ToString());
+            Assert.That(uniqueList.ToString(), Is.EqualTo("DDD"));
         }
 
         /// <summary>
@@ -444,7 +444,7 @@ namespace Sharpmake.UnitTests
                 return x.Length.CompareTo(y.Length);
             });
 
-            Assert.AreEqual(new List<string>() { "AA", "CC", "BBB", "DDD" }, listReturn);
+            Assert.That(listReturn, Is.EqualTo(new List<string>() { "AA", "CC", "BBB", "DDD" }));
         }
 
         /// <summary>
@@ -462,7 +462,7 @@ namespace Sharpmake.UnitTests
             };
             uniqueList.Clear();
 
-            Assert.AreEqual(0, uniqueList.Count);
+            Assert.That(uniqueList.Count, Is.EqualTo(0));
         }
 
         /// <summary>
@@ -479,7 +479,7 @@ namespace Sharpmake.UnitTests
                 "DDD"
             };
 
-            Assert.IsTrue(uniqueList.Contains("BBB"));
+            Assert.That(uniqueList.Contains("BBB"), Is.True);
         }
 
         /// <summary>
@@ -496,7 +496,7 @@ namespace Sharpmake.UnitTests
                 "DDD"
             };
 
-            Assert.IsFalse(uniqueList.Contains("HHH"));
+            Assert.That(uniqueList.Contains("HHH"), Is.False);
         }
 
         private class ListContainer
@@ -507,6 +507,9 @@ namespace Sharpmake.UnitTests
             }
             public UniqueList<string> List = new UniqueList<string>();
             public IEnumerable<string> SortedList => List.SortedValues;
+
+            public long IterationCount = 0;
+            public long NonEmptyCount = 0;
         }
 
         /// <summary>
@@ -516,10 +519,14 @@ namespace Sharpmake.UnitTests
         /// exception when multiple threads were accessing the property.
         /// </summary>
         [Test]
-        public static void MultithreadEmptyValuesSorted()
+        [TestCase("")]
+        [TestCase("Test")]
+        public static void MultithreadEmptyValuesSorted(string initialContent)
         {
             int nbrThreads = Environment.ProcessorCount;
             var container = new ListContainer();
+            if (!string.IsNullOrEmpty(initialContent))
+                container.List.Add(initialContent);
 
             int TOTAL_TEST_COUNT = 100000;
             long nbrThreadsFinished = 0;
@@ -527,16 +534,17 @@ namespace Sharpmake.UnitTests
             Exception taskTestException = null;
 
             // Note: Using a Barrier to synchronize all the threads at each iteration
-            using (Barrier barrier = new Barrier(nbrThreads, (b) =>
+            using (Barrier barrier = new Barrier(0, (b) =>
              {
+                 container.List.SetDirty();
                  Interlocked.Increment(ref nbrThreadsGate1);
-                 container.List.AddRange(new List<string> { }); // Adding an empty collection makes the UniqueList dirty
              }))
             {
                 ThreadPool.TaskCallback taskLambda = (object taskParams) =>
                 {
                     var listContainersTask = (ListContainer)taskParams;
-
+                    int count = 0;
+                    int nonEmptyCount = 0;
                     try
                     {
                         for (int i = 0; i < TOTAL_TEST_COUNT; ++i)
@@ -547,11 +555,15 @@ namespace Sharpmake.UnitTests
                             if (taskTestException != null)
                                 break; // Abort once we got an exception
 
-                            // Attempt to access the SortedList property from multiple threads. 
-                            // It must not create any exception!
-                            foreach (var s in container.SortedList)
+                            for (int j = 0; j < 5; ++j)
                             {
-                                Console.WriteLine(s);
+                                // Attempt to access the SortedList property from multiple threads. 
+                                // It must not create any exception!
+                                foreach (var s in container.SortedList)
+                                {
+                                    ++nonEmptyCount;
+                                }
+                                ++count;
                             }
                         }
                     }
@@ -562,8 +574,10 @@ namespace Sharpmake.UnitTests
                     }
                     finally
                     {
-                        barrier.RemoveParticipant(); // Must remove the participant to unblock all the other threads.
                         Interlocked.Increment(ref nbrThreadsFinished);
+                        Interlocked.Add(ref listContainersTask.IterationCount, count);
+                        Interlocked.Add(ref listContainersTask.IterationCount, nonEmptyCount);
+                        barrier.RemoveParticipant();
                     }
                 };
 
@@ -572,6 +586,7 @@ namespace Sharpmake.UnitTests
                 {
                     // Add 1 task per thread
                     pool.Start(nbrThreads);
+                    barrier.AddParticipants(nbrThreads);
                     for (int i = 0; i < nbrThreads; ++i)
                     {
                         pool.AddTask(taskLambda, container);
@@ -582,6 +597,7 @@ namespace Sharpmake.UnitTests
 
                     // Check the results.
                     TestContext.Out.WriteLine("nbr Finished: {0}, nbr Gate1: {1}", nbrThreadsFinished, nbrThreadsGate1);
+                    TestContext.Out.WriteLine($"IterationCount : {container.IterationCount}");
                     if (taskTestException != null)
                     {
                         throw taskTestException;
